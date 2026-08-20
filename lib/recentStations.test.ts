@@ -41,4 +41,24 @@ describe("recentStations", () => {
     window.localStorage.setItem(RECENT_STORAGE_KEY, "not-json");
     expect(readRecentIds()).toEqual([]);
   });
+
+  it("keeps only the latest ten ids and trims persisted storage", () => {
+    const stale = Array.from({ length: 12 }, (_, index) => `station-${index}`);
+    window.localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(stale));
+
+    expect(readRecentIds()).toEqual(stale.slice(0, 10));
+    expect(JSON.parse(window.localStorage.getItem(RECENT_STORAGE_KEY)!)).toEqual(
+      stale.slice(0, 10),
+    );
+  });
+
+  it("drops older ids when pushing beyond the limit", () => {
+    for (let index = 0; index < 12; index += 1) {
+      pushRecentId(`station-${index}`);
+    }
+
+    expect(readRecentIds()).toHaveLength(10);
+    expect(readRecentIds()[0]).toBe("station-11");
+    expect(readRecentIds()[9]).toBe("station-2");
+  });
 });

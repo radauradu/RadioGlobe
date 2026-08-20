@@ -50,6 +50,9 @@ export default function Home() {
   const selectedStationIdRef = useRef<string | null>(null);
   const selectionRequestRef = useRef(0);
   const deepLinkHandledRef = useRef(false);
+  const initialAutoplayRef = useRef(false);
+  const autoplayAttemptsRef = useRef(0);
+  const everPlayedRef = useRef(false);
 
   const onStationUnavailable = useCallback((station: RadioStation) => {
     setFailedStationIds((current) => new Set(current).add(station.id));
@@ -118,8 +121,10 @@ export default function Home() {
       stationDetailsRef.current.set(station.id, station);
       setSelectedStation(station);
       trackRecent(station.id);
-      if (selectedStationIdRef.current === station.id) return;
+      const sameStation = selectedStationIdRef.current === station.id;
       selectedStationIdRef.current = station.id;
+      if (sameStation && !autoplay) return;
+      if (sameStation && player.isPlaying) return;
       void player.tune(station, autoplay);
     },
     [player, trackRecent],
@@ -158,6 +163,7 @@ export default function Home() {
     if (!stationId) return;
 
     deepLinkHandledRef.current = true;
+    initialAutoplayRef.current = true;
     void (async () => {
       const cached = stationDetailsRef.current.get(stationId);
       if (cached) {
@@ -203,15 +209,74 @@ export default function Home() {
           nearestStations(coordinates, selectableStations, 1)[0];
         if (!next) return;
 
-        if (selectedStation?.id === next.id) return;
+        initialAutoplayRef.current = true;
+
+        if (selectedStation?.id === next.id) {
+          if (!player.isPlaying && !player.wantsPlayback) {
+            await selectPoint(next, true);
+          }
+          return;
+        }
 
         await selectPoint(next, true);
       } finally {
         setIsScanning(false);
       }
     },
-    [selectPoint, selectableStations, selectedStation?.id],
+    [player.isPlaying, player.wantsPlayback, selectPoint, selectableStations, selectedStation?.id],
   );
+
+  useEffect(() => {
+    if (initialAutoplayRef.current) return;
+    if (readStationIdFromSearch(window.location.search)) return;
+    if (selectableStations.length === 0 || selectedStation) return;
+
+    const timer = window.setTimeout(() => {
+      if (initialAutoplayRef.current) return;
+      if (selectableStations.length === 0) return;
+      if (player.isPlaying || player.wantsPlayback) return;
+
+      initialAutoplayRef.current = true;
+      autoplayAttemptsRef.current += 1;
+      const starter =
+        selectableStations[
+          Math.floor(Math.random() * Math.min(selectableStations.length, 500))
+        ];
+      void selectPoint(starter, true);
+    }, 1500);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    player.isPlaying,
+    player.wantsPlayback,
+    selectableStations.length,
+    selectPoint,
+    selectedStation,
+  ]);
+
+  useEffect(() => {
+    if (player.isPlaying) {
+      everPlayedRef.current = true;
+    }
+  }, [player.isPlaying]);
+
+  useEffect(() => {
+    if (!selectedStation || everPlayedRef.current) return;
+    if (player.isPlaying || player.wantsPlayback) return;
+    if (autoplayAttemptsRef.current >= 4) return;
+
+    const timer = window.setTimeout(() => {
+      if (!selectedStation || everPlayedRef.current) return;
+      if (player.isPlaying || player.wantsPlayback) return;
+      if (autoplayAttemptsRef.current >= 4) return;
+
+      autoplayAttemptsRef.current += 1;
+      initialAutoplayRef.current = true;
+      void player.tune(selectedStation, true);
+    }, 2000);
+
+    return () => window.clearTimeout(timer);
+  }, [player.isPlaying, player.wantsPlayback, selectedStation, player.tune]);
 
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-black">
@@ -236,7 +301,7 @@ export default function Home() {
 
       <div className="pointer-events-none hud-overlay">
         <div className="hud-top">
-          <div className="pointer-events-auto max-h-full min-w-0">
+          <div className="pointer-events-auto sidebar-host">
             <StationSidebar
               stations={sidebarStations}
               totalOnGlobe={directory.stationPoints.length}
@@ -248,11 +313,8 @@ export default function Home() {
               onCountryChange={directory.setCountry}
               genre={directory.genre}
               onGenreChange={directory.setGenre}
-              language={directory.language}
-              onLanguageChange={directory.setLanguage}
               countries={directory.countries}
               genres={directory.genres}
-              languages={directory.languages}
               listMode={listMode}
               onListModeChange={setListMode}
               favoriteCount={favorites.ids.length}

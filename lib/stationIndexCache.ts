@@ -2,12 +2,13 @@ import type { StationPoint } from "./radioApi";
 
 const DATABASE_NAME = "radio-globe";
 const STORE_NAME = "catalog";
-const CACHE_KEY = "station-index-v6";
+const CACHE_KEY = "station-index-v7";
 const DATABASE_VERSION = 1;
 
 export interface StationIndexCache {
   stations: StationPoint[];
   cachedAt: number;
+  complete?: boolean;
 }
 
 function openDatabase() {

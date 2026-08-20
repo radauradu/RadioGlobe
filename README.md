@@ -16,7 +16,7 @@ Then open [http://localhost:3000](http://localhost:3000).
 ## Features
 
 - Streamed satellite map tiles that remain sharp during deep zoom
-- Nearly 40,000 stations loaded progressively as one WebGL point collection
+- Nearly 50,000 stations loaded progressively as one WebGL point collection
 - Exact coordinates where available, with clearly labeled country-level
   placement for stations that only publish a country
 - IndexedDB point-index caching and on-demand station detail loading

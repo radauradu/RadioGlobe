@@ -1,9 +1,15 @@
 "use client";
 
 import Hls from "hls.js";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from "react";
 import type { RadioStation } from "@/lib/radioApi";
-import { fadeAudioVolume, playTuningJingle } from "@/lib/tuningSound";
+import { fadeAudioVolume, playTuningJingle, stopTuningSound } from "@/lib/tuningSound";
 
 export type PlayerStatus = "idle" | "loading" | "playing" | "paused" | "error";
 
@@ -24,6 +30,57 @@ function hardStopAudioElement(audio: HTMLAudioElement) {
   audio.pause();
   audio.removeAttribute("src");
   audio.load();
+}
+
+function getSharedAudioElement(registry: Set<HTMLAudioElement>) {
+  const existing = registry.values().next().value;
+  if (existing) return existing;
+
+  const audio = new Audio();
+  audio.preload = "auto";
+  audio.volume = 0.72;
+  registry.add(audio);
+  return audio;
+}
+
+function bindSharedAudioElement(
+  audioRef: MutableRefObject<HTMLAudioElement | null>,
+) {
+  if (typeof window === "undefined") return null;
+  if (!audioRef.current) {
+    audioRef.current = getSharedAudioElement(audioElementRegistry());
+  }
+  return audioRef.current;
+}
+
+function waitForPlaybackReady(
+  audio: HTMLAudioElement,
+  timeoutMs = 15000,
+): Promise<boolean> {
+  if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+    return Promise.resolve(true);
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ready: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      audio.removeEventListener("canplay", onReady);
+      audio.removeEventListener("loadeddata", onReady);
+      resolve(ready);
+    };
+    const onReady = () => finish(true);
+    const timer = window.setTimeout(() => finish(false), timeoutMs);
+    audio.addEventListener("canplay", onReady);
+    audio.addEventListener("loadeddata", onReady);
+  });
+}
+
+function prefersMutedAutoplay() {
+  if (typeof navigator === "undefined") return true;
+  return !navigator.userActivation?.hasBeenActive;
 }
 
 export function useAudioPlayer(
@@ -51,11 +108,14 @@ export function useAudioPlayer(
   const unavailableRef = useRef(onStationUnavailable);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const outputGainRef = useRef<GainNode | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const attachSourceRef = useRef<
     (nextStation: RadioStation, relay: boolean) => void
   >(() => undefined);
   const autoUnmuteCleanupRef = useRef<(() => void) | null>(null);
+
+  bindSharedAudioElement(audioRef);
 
   useEffect(() => {
     unavailableRef.current = onStationUnavailable;
@@ -76,6 +136,52 @@ export function useAudioPlayer(
     setAwaitingUnmute(false);
   }, []);
 
+  const ensureAnalyser = useCallback(() => {
+    const audio = bindSharedAudioElement(audioRef);
+    if (!audio || typeof AudioContext === "undefined") return;
+
+    try {
+      const context =
+        audioContextRef.current ??
+        new AudioContext({ latencyHint: "interactive" });
+      audioContextRef.current = context;
+      if (!sourceRef.current) {
+        const source = context.createMediaElementSource(audio);
+        const analyser = context.createAnalyser();
+        const outputGain = context.createGain();
+        analyser.fftSize = 64;
+        analyser.smoothingTimeConstant = 0.78;
+        source.connect(analyser);
+        analyser.connect(outputGain);
+        outputGain.connect(context.destination);
+        sourceRef.current = source;
+        analyserRef.current = analyser;
+        outputGainRef.current = outputGain;
+      }
+    } catch {
+      analyserRef.current = null;
+      outputGainRef.current = null;
+    }
+  }, []);
+
+  const restoreAudibleOutput = useCallback(async () => {
+    const audio = bindSharedAudioElement(audioRef);
+    if (!audio) return;
+
+    ensureAnalyser();
+    audio.muted = mutedRef.current;
+    audio.volume = volumeRef.current;
+
+    const context = audioContextRef.current;
+    const outputGain = outputGainRef.current;
+    if (context && outputGain) {
+      if (context.state === "suspended") {
+        await context.resume().catch(() => undefined);
+      }
+      outputGain.gain.setValueAtTime(1, context.currentTime);
+    }
+  }, [ensureAnalyser]);
+
   // Browsers block unmuted autoplay without a prior user gesture. To make
   // the radio genuinely "already playing" on load, we fall back to a
   // muted autoplay and restore real sound the moment the visitor interacts
@@ -89,13 +195,8 @@ export function useAudioPlayer(
       "wheel",
     ];
     const handler = () => {
-      const audio = audioRef.current;
-      if (audio && wantPlayingRef.current) {
-        audio.muted = mutedRef.current;
-        const context = audioContextRef.current;
-        if (context?.state === "suspended") {
-          void context.resume().catch(() => undefined);
-        }
+      if (audioRef.current && wantPlayingRef.current) {
+        void restoreAudibleOutput();
       }
       clearAutoUnmute();
     };
@@ -106,33 +207,10 @@ export function useAudioPlayer(
       events.forEach((event) => window.removeEventListener(event, handler));
     };
     setAwaitingUnmute(true);
-  }, [clearAutoUnmute]);
+  }, [clearAutoUnmute, restoreAudibleOutput]);
 
-  const ensureAnalyser = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio || typeof AudioContext === "undefined") return;
-
-    try {
-      const context =
-        audioContextRef.current ??
-        new AudioContext({ latencyHint: "interactive" });
-      audioContextRef.current = context;
-      if (!sourceRef.current) {
-        const source = context.createMediaElementSource(audio);
-        const analyser = context.createAnalyser();
-        analyser.fftSize = 64;
-        analyser.smoothingTimeConstant = 0.78;
-        source.connect(analyser);
-        analyser.connect(context.destination);
-        sourceRef.current = source;
-        analyserRef.current = analyser;
-      }
-      if (context.state === "suspended") {
-        void context.resume().catch(() => undefined);
-      }
-    } catch {
-      analyserRef.current = null;
-    }
+  const silencePlaybackOutput = useCallback(() => {
+    stopTuningSound();
   }, []);
 
   // Autoplay can start the media element while leaving Web Audio suspended.
@@ -140,13 +218,8 @@ export function useAudioPlayer(
   // follows the music instead of remaining a flat line.
   useEffect(() => {
     const resumeAnalyser = () => {
-      const context = audioContextRef.current;
-      if (
-        context?.state === "suspended" &&
-        wantPlayingRef.current
-      ) {
-        void context.resume().catch(() => undefined);
-      }
+      if (!wantPlayingRef.current || !sourceRef.current) return;
+      void restoreAudibleOutput();
     };
     window.addEventListener("pointerdown", resumeAnalyser, { passive: true });
     window.addEventListener("keydown", resumeAnalyser);
@@ -156,7 +229,7 @@ export function useAudioPlayer(
       window.removeEventListener("keydown", resumeAnalyser);
       window.removeEventListener("touchstart", resumeAnalyser);
     };
-  }, []);
+  }, [restoreAudibleOutput]);
 
   const sourceFor = useCallback(
     (nextStation: RadioStation, relay: boolean) =>
@@ -169,7 +242,7 @@ export function useAudioPlayer(
   const attachSource: (nextStation: RadioStation, relay: boolean) => void =
     useCallback(
     (nextStation: RadioStation, relay: boolean) => {
-      const audio = audioRef.current;
+      const audio = bindSharedAudioElement(audioRef);
       if (!audio) return;
       destroyHls();
       usingRelayRef.current = relay;
@@ -198,6 +271,13 @@ export function useAudioPlayer(
             return;
           }
           hls.loadSource(url);
+        });
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          if (!wantPlayingRef.current || !audio.paused) return;
+          if (prefersMutedAutoplay()) {
+            audio.muted = true;
+          }
+          void audio.play().catch(() => undefined);
         });
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (!data.fatal) return;
@@ -237,9 +317,15 @@ export function useAudioPlayer(
   // stream itself is broken (CORS/mixed-content/network) — through our
   // same-origin relay. Returns whether playback is genuinely underway.
   const attemptPlayback = useCallback(
-    async (nextStation: RadioStation, generation: number) => {
-      const audio = audioRef.current;
+    async (
+      nextStation: RadioStation,
+      generation: number,
+      options?: { userInitiated?: boolean },
+    ) => {
+      const audio = bindSharedAudioElement(audioRef);
       if (!audio) return false;
+
+      const userInitiated = options?.userInitiated ?? false;
 
       const stillWanted = () =>
         playbackGenerationRef.current === generation &&
@@ -249,58 +335,90 @@ export function useAudioPlayer(
         audio.muted = true;
         await audio.play();
         if (!stillWanted()) return false;
-        armAutoUnmute();
+        if (!mutedRef.current) {
+          armAutoUnmute();
+        }
         return true;
       };
 
-      try {
-        await audio.play();
-        return stillWanted();
-      } catch (playError) {
-        if (!stillWanted()) return false;
-
-        const blockedBySound =
-          playError instanceof DOMException &&
-          playError.name === "NotAllowedError";
-
-        if (blockedBySound) {
+      const tryPlay = async (mutedFirst: boolean) => {
+        if (mutedFirst) {
           try {
-            return await tryMuted();
+            const mutedStarted = await tryMuted();
+            if (mutedStarted) return true;
           } catch {
             if (!stillWanted()) return false;
           }
         }
 
-        if (!usingRelayRef.current) {
-          attachSource(nextStation, true);
-          try {
-            return await tryMuted();
-          } catch {
-            if (!stillWanted()) return false;
+        try {
+          audio.muted = mutedRef.current;
+          await audio.play();
+          if (!stillWanted()) return false;
+          if (userInitiated) {
+            await restoreAudibleOutput();
+          }
+          return true;
+        } catch (playError) {
+          if (!stillWanted()) return false;
+
+          const blockedBySound =
+            playError instanceof DOMException &&
+            playError.name === "NotAllowedError";
+
+          if (blockedBySound || mutedFirst) {
+            try {
+              const mutedStarted = await tryMuted();
+              if (mutedStarted && userInitiated) {
+                await restoreAudibleOutput();
+              }
+              return mutedStarted;
+            } catch {
+              if (!stillWanted()) return false;
+            }
+          }
+
+          return false;
+        }
+      };
+
+      const ready = await waitForPlaybackReady(audio);
+      if (!stillWanted()) return false;
+      if (!ready) {
+        const slowReady = await waitForPlaybackReady(audio, 20000);
+        if (!stillWanted() || !slowReady) {
+          if (!usingRelayRef.current) {
+            attachSource(nextStation, true);
+            if (!(await waitForPlaybackReady(audio, 20000)) || !stillWanted()) {
+              return false;
+            }
+          } else {
+            return false;
           }
         }
-
-        return false;
       }
+
+      const mutedFirst =
+        !userInitiated &&
+        (prefersMutedAutoplay() || !startedPlayingRef.current);
+      if (await tryPlay(mutedFirst)) return true;
+
+      if (!usingRelayRef.current) {
+        attachSource(nextStation, true);
+        if (!(await waitForPlaybackReady(audio)) || !stillWanted()) return false;
+        return tryPlay(true);
+      }
+
+      return false;
     },
-    [armAutoUnmute, attachSource],
+    [armAutoUnmute, attachSource, restoreAudibleOutput],
   );
 
   useEffect(() => {
-    const registry = audioElementRegistry();
-    // Strict Mode, hot reloads, or a previous interrupted mount must never
-    // leave a second radio playing behind the current player.
-    for (const existingAudio of registry) {
-      hardStopAudioElement(existingAudio);
-    }
-    const audio = new Audio();
-    audio.preload = "none";
-    // Streams are played through our same-origin relay before entering Web
-    // Audio. A cross-origin stream connected directly to Web Audio is
-    // intentionally silenced by browsers.
-    audio.volume = 0.72;
-    audioRef.current = audio;
-    registry.add(audio);
+    bindSharedAudioElement(audioRef);
+
+    const audio = audioRef.current;
+    if (!audio) return;
 
     const onPlaying = () => {
       if (!wantPlayingRef.current) {
@@ -359,19 +477,8 @@ export function useAudioPlayer(
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("waiting", onWaiting);
       audio.removeEventListener("error", onError);
-      hardStopAudioElement(audio);
-      registry.delete(audio);
-      destroyHls();
-      autoUnmuteCleanupRef.current?.();
-      autoUnmuteCleanupRef.current = null;
-      const audioContext = audioContextRef.current;
-      audioContextRef.current = null;
-      if (audioContext && audioContext.state !== "closed") {
-        void audioContext.close().catch(() => undefined);
-      }
-      audioRef.current = null;
     };
-  }, [attachSource, destroyHls]);
+  }, [attachSource]);
 
   const pausePlayback = useCallback(() => {
     const audio = audioRef.current;
@@ -382,29 +489,28 @@ export function useAudioPlayer(
     wantPlayingRef.current = false;
     setWantsPlayback(false);
     startedPlayingRef.current = false;
+    silencePlaybackOutput();
+    hlsRef.current?.stopLoad();
     destroyHls();
     for (const radioAudio of audioElementRegistry()) {
       hardStopAudioElement(radioAudio);
     }
-    if (audioContextRef.current?.state === "running") {
-      void audioContextRef.current.suspend().catch(() => undefined);
-    }
     setStatus("paused");
 
-    // Belt-and-suspenders: if any in-flight async step (e.g. a delayed
-    // AudioContext resume) manages to call play() right around this tick,
-    // make sure it gets shut down too.
     window.setTimeout(() => {
-      if (!wantPlayingRef.current && !audio.paused) {
-        audio.muted = true;
-        audio.pause();
+      if (!wantPlayingRef.current) {
+        for (const radioAudio of audioElementRegistry()) {
+          if (!radioAudio.paused) {
+            hardStopAudioElement(radioAudio);
+          }
+        }
       }
     }, 0);
-  }, [clearAutoUnmute, destroyHls]);
+  }, [clearAutoUnmute, destroyHls, silencePlaybackOutput]);
 
   const tune = useCallback(
     async (nextStation: RadioStation, autoplay = true) => {
-      const audio = audioRef.current;
+      const audio = bindSharedAudioElement(audioRef);
       if (!audio) return;
 
       const previousStation = stationRef.current;
@@ -414,9 +520,15 @@ export function useAudioPlayer(
         autoplay;
 
       if (isSwitch && !audio.paused && !mutedRef.current && audio.volume > 0) {
-        await fadeAudioVolume(audio, audio.volume, 0, 160);
+        await fadeAudioVolume(
+          audio,
+          audio.volume,
+          0,
+          160,
+          () => wantPlayingRef.current,
+        );
       }
-      if (isSwitch) {
+      if (isSwitch && wantPlayingRef.current) {
         void playTuningJingle();
       }
 
@@ -437,14 +549,15 @@ export function useAudioPlayer(
       if (autoplay) {
         clearAutoUnmute();
         try {
-          ensureAnalyser();
           if (
             playbackGenerationRef.current !== generation ||
             !wantPlayingRef.current
           ) {
             return;
           }
-          const started = await attemptPlayback(nextStation, generation);
+          const started = await attemptPlayback(nextStation, generation, {
+            userInitiated: !prefersMutedAutoplay(),
+          });
           if (
             playbackGenerationRef.current !== generation ||
             !wantPlayingRef.current
@@ -454,12 +567,21 @@ export function useAudioPlayer(
             return;
           }
           if (started) {
+            if (!prefersMutedAutoplay()) {
+              await restoreAudibleOutput();
+            }
             startedPlayingRef.current = true;
             setStatus("playing");
             setError(null);
-            if (isSwitch && !mutedRef.current) {
+            if (isSwitch && !mutedRef.current && !audio.muted) {
               audio.volume = 0;
-              await fadeAudioVolume(audio, 0, volumeRef.current, 220);
+              await fadeAudioVolume(
+                audio,
+                0,
+                volumeRef.current,
+                220,
+                () => wantPlayingRef.current,
+              );
             }
           } else {
             wantPlayingRef.current = false;
@@ -482,11 +604,11 @@ export function useAudioPlayer(
         hlsRef.current?.stopLoad();
       }
     },
-    [attachSource, attemptPlayback, clearAutoUnmute, ensureAnalyser],
+    [attachSource, attemptPlayback, clearAutoUnmute, restoreAudibleOutput],
   );
 
   const togglePlayback = useCallback(async () => {
-    const audio = audioRef.current;
+    const audio = bindSharedAudioElement(audioRef);
     if (!audio || !stationRef.current) return;
 
     if (wantPlayingRef.current) {
@@ -499,20 +621,20 @@ export function useAudioPlayer(
     playbackGenerationRef.current = generation;
     wantPlayingRef.current = true;
     setWantsPlayback(true);
-    startedPlayingRef.current = false;
     audio.muted = mutedRef.current;
     setStatus("loading");
     const stationToPlay = stationRef.current;
     try {
       attachSource(stationToPlay, true);
-      ensureAnalyser();
       if (
         playbackGenerationRef.current !== generation ||
         !wantPlayingRef.current
       ) {
         return;
       }
-      const started = await attemptPlayback(stationToPlay, generation);
+      const started = await attemptPlayback(stationToPlay, generation, {
+        userInitiated: true,
+      });
       if (
         playbackGenerationRef.current !== generation ||
         !wantPlayingRef.current
@@ -546,7 +668,6 @@ export function useAudioPlayer(
     attachSource,
     attemptPlayback,
     clearAutoUnmute,
-    ensureAnalyser,
     pausePlayback,
   ]);
 
@@ -629,7 +750,7 @@ export function useAudioPlayer(
   return {
     station,
     status,
-    isPlaying: status === "playing",
+    isPlaying: status === "playing" || (wantsPlayback && status === "loading"),
     wantsPlayback,
     awaitingUnmute,
     volume,

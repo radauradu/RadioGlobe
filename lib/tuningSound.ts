@@ -1,9 +1,41 @@
 let tuningContext: AudioContext | null = null;
+const activeTuningNodes = new Set<AudioScheduledSourceNode>();
 
 function tuningAudioContext() {
   if (typeof AudioContext === "undefined") return null;
   tuningContext ??= new AudioContext();
   return tuningContext;
+}
+
+function trackTuningNode(node: AudioScheduledSourceNode) {
+  activeTuningNodes.add(node);
+  node.addEventListener(
+    "ended",
+    () => {
+      activeTuningNodes.delete(node);
+    },
+    { once: true },
+  );
+}
+
+export function stopTuningSound() {
+  for (const node of activeTuningNodes) {
+    try {
+      node.stop();
+    } catch {
+      // Already stopped.
+    }
+    try {
+      node.disconnect();
+    } catch {
+      // Already disconnected.
+    }
+  }
+  activeTuningNodes.clear();
+
+  if (tuningContext?.state === "running") {
+    void tuningContext.suspend().catch(() => undefined);
+  }
 }
 
 export async function playTuningJingle() {
@@ -39,6 +71,8 @@ export async function playTuningJingle() {
 
   noise.connect(output);
   sweep.connect(output);
+  trackTuningNode(noise);
+  trackTuningNode(sweep);
   noise.start(start);
   noise.stop(start + 0.28);
   sweep.start(start);
@@ -50,6 +84,7 @@ export function fadeAudioVolume(
   from: number,
   to: number,
   durationMs: number,
+  shouldContinue?: () => boolean,
 ) {
   const steps = Math.max(1, Math.round(durationMs / 16));
   const stepMs = durationMs / steps;
@@ -58,6 +93,10 @@ export function fadeAudioVolume(
 
   return new Promise<void>((resolve) => {
     const tick = () => {
+      if (shouldContinue && !shouldContinue()) {
+        resolve();
+        return;
+      }
       step += 1;
       const progress = step / steps;
       audio.volume = from + (to - from) * progress;

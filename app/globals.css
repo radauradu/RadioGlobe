@@ -321,6 +321,7 @@ button {
   display: flex;
   width: 100%;
   align-items: center;
+  gap: 10px;
   min-height: 52px;
   padding: 10px 16px;
   border: 0;
@@ -451,6 +452,22 @@ button {
 }
 
 .player-art {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+}
+
+.sidebar-row-art,
+.sidebar-selected-art {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: rgba(118, 118, 128, 0.12);
+}
+
+.sidebar-selected-art {
   width: 40px;
   height: 40px;
   border-radius: 10px;
@@ -970,6 +987,15 @@ button {
   gap: 0.75rem;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+}
+
+.sidebar-host {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  flex: 0 1 auto;
 }
 
 .hud-details {
@@ -997,6 +1023,7 @@ button {
   position: relative;
   display: flex;
   min-width: 0;
+  min-height: 0;
   max-height: 100%;
   flex-direction: column;
 }
@@ -1050,8 +1077,15 @@ button {
 .sidebar-sheet {
   display: none;
   width: min(22.5rem, 100%);
-  max-height: 100%;
   min-height: 0;
+  max-height: min(
+    calc(
+      100dvh - 7.5rem - env(safe-area-inset-top, 0px) -
+        env(safe-area-inset-bottom, 0px)
+    ),
+    520px
+  );
+  flex-direction: column;
 }
 
 .sidebar-sheet-open {
@@ -1060,6 +1094,7 @@ button {
 
 .sidebar-header {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -1068,9 +1103,18 @@ button {
 
 .sidebar-controls {
   display: flex;
+  flex-shrink: 0;
   flex-direction: column;
   gap: 8px;
   padding: 10px 12px 8px;
+}
+
+.sidebar-list {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .sidebar-filters {
@@ -1269,10 +1313,6 @@ button {
   gap: 0;
 }
 
-.player-art {
-  display: none;
-}
-
 .player-share,
 .player-shuffle {
   display: inline-flex;
@@ -1408,10 +1448,6 @@ select {
     font-size: 11px;
   }
 
-  .player-art {
-    display: none;
-  }
-
   .player-station {
     font-size: 10px;
   }
@@ -1515,7 +1551,13 @@ select {
   .sidebar-sheet-open {
     display: flex;
     width: min(20rem, 100%);
-    max-height: min(62vh, 620px, 100%);
+    max-height: min(
+      calc(
+        100dvh - 8rem - env(safe-area-inset-top, 0px) -
+          env(safe-area-inset-bottom, 0px)
+      ),
+      480px
+    );
   }
 
   .sidebar-header {
@@ -1779,6 +1821,17 @@ select {
   .sidebar-controls {
     gap: 6px;
     padding-block: 8px;
+  }
+
+  .sidebar-sheet,
+  .sidebar-sheet-open {
+    max-height: min(
+      calc(
+        100dvh - 6rem - env(safe-area-inset-top, 0px) -
+          env(safe-area-inset-bottom, 0px)
+      ),
+      360px
+    );
   }
 
   .player-station {

@@ -7,7 +7,7 @@ import {
   writeStationIndex,
 } from "@/lib/stationIndexCache";
 
-const TARGET_STATIONS = 40_000;
+const TARGET_STATIONS = 50_000;
 const PAGE_SIZE = 5_000;
 const INDEX_CACHE_TTL = 24 * 60 * 60 * 1_000;
 
@@ -24,7 +24,6 @@ interface SearchResponse {
 interface FacetResponse {
   countries: string[];
   genres: string[];
-  languages: string[];
 }
 
 export function useRadioStreams() {
@@ -32,14 +31,12 @@ export function useRadioStreams() {
   const [searchResults, setSearchResults] = useState<RadioStation[]>([]);
   const [countries, setCountries] = useState<string[]>([]);
   const [genres, setGenres] = useState<string[]>([]);
-  const [languages, setLanguages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("all");
   const [genre, setGenre] = useState("all");
-  const [language, setLanguage] = useState("all");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -50,7 +47,7 @@ export function useRadioStreams() {
         if (
           cached &&
           Date.now() - cached.cachedAt < INDEX_CACHE_TTL &&
-          cached.stations.length > 0
+          (cached.complete || cached.stations.length >= TARGET_STATIONS)
         ) {
           setStationPoints(cached.stations);
           setIsLoading(false);
@@ -88,6 +85,7 @@ export function useRadioStreams() {
         await writeStationIndex({
           stations,
           cachedAt: Date.now(),
+          complete: !hasMore || stations.length >= TARGET_STATIONS,
         }).catch(() => undefined);
       } catch (reason) {
         if (
@@ -121,7 +119,6 @@ export function useRadioStreams() {
         const data = (await response.json()) as FacetResponse;
         setCountries(data.countries);
         setGenres(data.genres);
-        setLanguages(data.languages ?? []);
       } catch {
         // Search remains available without optional filter lists.
       }
@@ -135,7 +132,7 @@ export function useRadioStreams() {
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setIsSearching(true);
-      const params = new URLSearchParams({ query, country, genre, language });
+      const params = new URLSearchParams({ query, country, genre, language: "all" });
       try {
         const response = await fetch(`/api/stations/search?${params}`, {
           signal: controller.signal,
@@ -159,14 +156,13 @@ export function useRadioStreams() {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [country, genre, language, query]);
+  }, [country, genre, query]);
 
   return {
     stationPoints,
     searchResults,
     countries,
     genres,
-    languages,
     isLoading,
     isSearching,
     error,
@@ -176,7 +172,5 @@ export function useRadioStreams() {
     setCountry,
     genre,
     setGenre,
-    language,
-    setLanguage,
   };
 }

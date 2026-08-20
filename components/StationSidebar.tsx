@@ -3,6 +3,7 @@
 import { ChevronDown, Heart, Menu, Search, Share2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import ApplePanel from "@/components/ApplePanel";
+import StationArt from "@/components/StationArt";
 import { formatStationPlace } from "@/lib/place";
 import type { RadioStation } from "@/lib/radioApi";
 import { shareStationLink } from "@/lib/shareStation";
@@ -28,11 +29,8 @@ interface StationSidebarProps {
   onCountryChange: (value: string) => void;
   genre: string;
   onGenreChange: (value: string) => void;
-  language: string;
-  onLanguageChange: (value: string) => void;
   countries: string[];
   genres: string[];
-  languages: string[];
   listMode: StationListMode;
   onListModeChange: (mode: StationListMode) => void;
   favoriteCount: number;
@@ -52,11 +50,8 @@ export default function StationSidebar({
   onCountryChange,
   genre,
   onGenreChange,
-  language,
-  onLanguageChange,
   countries,
   genres,
-  languages,
   listMode,
   onListModeChange,
   favoriteCount,
@@ -92,10 +87,7 @@ export default function StationSidebar({
   const globeTotal = Math.max(totalOnGlobe, featuredCount);
   const showingFeatured = featuredCount > 0 && featuredCount < globeTotal;
   const isBrowsingFeatured =
-    !query.trim() &&
-    country === "all" &&
-    genre === "all" &&
-    language === "all";
+    !query.trim() && country === "all" && genre === "all";
 
   function closeIfCompact() {
     if (isCompactViewport()) setMenuOpen(false);
@@ -159,7 +151,7 @@ export default function StationSidebar({
             />
           </div>
 
-          <div className="sidebar-filters sidebar-filters-triple">
+          <div className="sidebar-filters">
             <select
               value={country}
               onChange={(event) => onCountryChange(event.target.value)}
@@ -186,23 +178,15 @@ export default function StationSidebar({
                 </option>
               ))}
             </select>
-            <select
-              value={language}
-              onChange={(event) => onLanguageChange(event.target.value)}
-              className="apple-field"
-              aria-label="Language"
-            >
-              <option value="all">Language</option>
-              {languages.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
           </div>
 
           {selectedStation ? (
             <div className="apple-mobile-selected">
+              <StationArt
+                favicon={selectedStation.favicon}
+                name={selectedStation.name}
+                className="sidebar-selected-art"
+              />
               <div className="min-w-0 flex-1">
                 <p className="sidebar-selected-name truncate">
                   {selectedStation.name}
@@ -307,10 +291,6 @@ export default function StationSidebar({
                 <span className="sidebar-results-hint">
                   Your listening trail on this device
                 </span>
-              ) : showingFeatured ? (
-                <span className="sidebar-results-hint">
-                  {globeTotal.toLocaleString()}+ on the globe
-                </span>
               ) : null}
             </span>
             <ChevronDown
@@ -321,7 +301,7 @@ export default function StationSidebar({
         </div>
 
         {listOpen ? (
-          <div className="apple-list min-h-0 flex-1 overflow-y-auto">
+          <div className="apple-list sidebar-list">
             {stations.slice(0, 120).map((station) => {
               const selected = selectedStation?.id === station.id;
               const item =
@@ -334,6 +314,11 @@ export default function StationSidebar({
                   onClick={() => handleSelectStation(station)}
                   className={`apple-row ${selected ? "apple-row-active" : ""}`}
                 >
+                  <StationArt
+                    favicon={item.favicon}
+                    name={item.name}
+                    className="sidebar-row-art"
+                  />
                   <span className="min-w-0">
                     <span className="apple-row-title">{item.name}</span>
                     <span className="apple-row-subtitle">{place.line}</span>
@@ -357,11 +342,9 @@ export default function StationSidebar({
               <p className="sidebar-footnote">
                 Recently played stations stay in this browser only.
               </p>
-            ) : showingFeatured ? (
+            ) : showingFeatured && isBrowsingFeatured ? (
               <p className="sidebar-footnote">
-                {isBrowsingFeatured
-                  ? `${featuredCount.toLocaleString()} featured here. Spin the globe or search to reach ${globeTotal.toLocaleString()}+ stations worldwide.`
-                  : `${featuredCount.toLocaleString()} shown · ${globeTotal.toLocaleString()}+ on the globe`}
+                Spin the globe or search to explore.
               </p>
             ) : null}
           </div>

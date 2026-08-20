@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface StationArtProps {
   favicon: string;
@@ -15,6 +15,10 @@ export default function StationArt({
 }: StationArtProps) {
   const [hidden, setHidden] = useState(false);
   const showImage = Boolean(favicon) && !hidden;
+
+  useEffect(() => {
+    setHidden(false);
+  }, [favicon]);
 
   return (
     <div

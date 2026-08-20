@@ -1,5 +1,5 @@
 export const RECENT_STORAGE_KEY = "radioglobe:recent";
-export const RECENT_LIMIT = 50;
+export const RECENT_LIMIT = 10;
 
 export function readRecentIds(): string[] {
   if (typeof window === "undefined") return [];
@@ -9,7 +9,12 @@ export function readRecentIds(): string[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((item): item is string => typeof item === "string");
+    const ids = parsed.filter((item): item is string => typeof item === "string");
+    if (ids.length <= RECENT_LIMIT) return ids;
+
+    const trimmed = ids.slice(0, RECENT_LIMIT);
+    writeRecentIds(trimmed);
+    return trimmed;
   } catch {
     return [];
   }

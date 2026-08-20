@@ -20,7 +20,7 @@ import {
   WebMapTileServiceImageryProvider,
   type PointPrimitive,
 } from "cesium";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RadioStation, StationPoint } from "@/lib/radioApi";
 import { nearestStations, type Coordinates } from "@/lib/spatial";
 
@@ -55,16 +55,16 @@ const PIN_SCALE = 0.45;
 const CENTER_FLIGHT_DURATION = 0.9;
 
 const GLOBE_SATELLITE_TONE = {
-  brightness: 1.16,
-  contrast: 1.2,
-  saturation: 1.18,
-  gamma: 0.96,
+  brightness: 0.98,
+  contrast: 1.16,
+  saturation: 1.1,
+  gamma: 0.9,
 } as const;
 
 const GLOBE_NIGHT_TONE = {
-  brightness: 1.32,
-  contrast: 1.08,
-  saturation: 1.14,
+  brightness: 1.14,
+  contrast: 1.06,
+  saturation: 1.08,
 } as const;
 
 function pinSizeForStation(
@@ -326,6 +326,7 @@ export default function GlobeViewport({
   const pointerDownRef = useRef<{ x: number; y: number } | null>(null);
   const isDraggingRef = useRef(false);
   const hasAssignedInitialCenterRef = useRef(false);
+  const [viewerReady, setViewerReady] = useState(false);
   const callbacksRef = useRef({
     onSelectStation,
     onCenterSettled,
@@ -395,7 +396,7 @@ export default function GlobeViewport({
 
       const baseLayer = new ImageryLayer(satelliteProvider, {
         dayAlpha: 1,
-        nightAlpha: 0.38,
+        nightAlpha: 0.44,
         brightness: GLOBE_SATELLITE_TONE.brightness,
         contrast: GLOBE_SATELLITE_TONE.contrast,
         saturation: GLOBE_SATELLITE_TONE.saturation,
@@ -427,7 +428,7 @@ export default function GlobeViewport({
 
       const nightLayer = new ImageryLayer(nightProvider, {
         dayAlpha: 0,
-        nightAlpha: 0.82,
+        nightAlpha: 0.86,
         brightness: GLOBE_NIGHT_TONE.brightness,
         contrast: GLOBE_NIGHT_TONE.contrast,
         saturation: GLOBE_NIGHT_TONE.saturation,
@@ -437,7 +438,7 @@ export default function GlobeViewport({
       const { scene } = viewer;
       scene.backgroundColor = Color.TRANSPARENT;
       if (scene.skyBox) scene.skyBox.show = false;
-      scene.globe.baseColor = Color.fromCssColorString("#163a62");
+      scene.globe.baseColor = Color.fromCssColorString("#112a4c");
       scene.globe.enableLighting = true;
       scene.globe.dynamicAtmosphereLighting = true;
       scene.globe.dynamicAtmosphereLightingFromSun = true;
@@ -872,6 +873,7 @@ export default function GlobeViewport({
       });
       scene.requestRender();
       setCanvasCursor(DEFAULT_CURSOR);
+      setViewerReady(true);
 
       if (
         !hasAssignedInitialCenterRef.current &&
@@ -962,6 +964,7 @@ export default function GlobeViewport({
 
   useEffect(() => {
     if (
+      !viewerReady ||
       selectedStation ||
       hasAssignedInitialCenterRef.current ||
       stations.length === 0
@@ -983,7 +986,7 @@ export default function GlobeViewport({
       }
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [selectedStation, stations]);
+  }, [selectedStation, stations, viewerReady]);
 
   useEffect(() => {
     const viewer = viewerRef.current;

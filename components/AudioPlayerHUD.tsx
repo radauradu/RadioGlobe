@@ -29,7 +29,6 @@ export default function AudioPlayerHUD({
     station,
     status,
     isPlaying,
-    awaitingUnmute,
     volume,
     muted,
     streamTitle,
@@ -42,10 +41,14 @@ export default function AudioPlayerHUD({
   const { artist, song } = parseNowPlaying(streamTitle);
   const statusLine =
     error ??
-    (awaitingUnmute ? "Tap anywhere for sound" : null) ??
     (status === "loading" ? "Connecting…" : null) ??
     (station && status === "paused" ? "Paused" : null);
-  const title = song ?? statusLine ?? "Turn the globe to find a station";
+  const title =
+    song ??
+    statusLine ??
+    (station
+      ? "No artist and song info are available"
+      : "Turn the globe to find a station");
   const subtitle = artist ?? (statusLine && song ? statusLine : null);
 
   async function handleShare() {
