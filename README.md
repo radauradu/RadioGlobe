@@ -22,6 +22,7 @@ Then open [http://localhost:3000](http://localhost:3000).
 - IndexedDB point-index caching and on-demand station detail loading
 - Point/crosshair tuning with animated camera focus
 - Search and filters for station, country, and genre
+- Saved stations appear as bright yellow pins on the globe
 - HTML5 and HLS playback, ICY title probes, volume, mute, and visualization
 - Restricted same-origin relay for HTTP/CORS streams with destination checks
 

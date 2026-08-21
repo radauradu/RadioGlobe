@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, Pause, Play, Share2, Shuffle, Volume2, VolumeX } from "lucide-react";
+import { Heart, LocateFixed, Pause, Play, Share2, Shuffle, Volume2, VolumeX } from "lucide-react";
 import { useState } from "react";
 import LiquidGlass from "@/components/LiquidGlass";
 import MarqueeText from "@/components/MarqueeText";
@@ -13,6 +13,8 @@ interface AudioPlayerHUDProps {
   player: ReturnType<typeof useAudioPlayer>;
   onRandomize: () => void;
   canRandomize: boolean;
+  onNearMe?: () => void;
+  statusOverride?: string | null;
   isFavorite?: boolean;
   onToggleFavorite?: (stationId: string) => void;
 }
@@ -21,6 +23,8 @@ export default function AudioPlayerHUD({
   player,
   onRandomize,
   canRandomize,
+  onNearMe,
+  statusOverride = null,
   isFavorite = false,
   onToggleFavorite,
 }: AudioPlayerHUDProps) {
@@ -40,6 +44,7 @@ export default function AudioPlayerHUD({
 
   const { artist, song } = parseNowPlaying(streamTitle);
   const statusLine =
+    statusOverride ??
     error ??
     (status === "loading" ? "Connecting…" : null) ??
     (station && status === "paused" ? "Paused" : null);
@@ -150,6 +155,17 @@ export default function AudioPlayerHUD({
           >
             <Shuffle className="control-glyph" strokeWidth={1.75} />
           </button>
+
+          {onNearMe ? (
+            <button
+              type="button"
+              className="control-icon control player-near-me"
+              onClick={onNearMe}
+              aria-label="Tune nearest station to my location"
+            >
+              <LocateFixed className="control-glyph" strokeWidth={1.75} />
+            </button>
+          ) : null}
 
           <button
             type="button"

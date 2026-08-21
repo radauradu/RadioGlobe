@@ -285,7 +285,6 @@ export default function StationSidebar({
               </span>
               {showingFavorites ? (
                 <span className="sidebar-results-hint">
-                  Saved on this device
                 </span>
               ) : showingRecent ? (
                 <span className="sidebar-results-hint">
@@ -329,14 +328,15 @@ export default function StationSidebar({
             {stations.length === 0 ? (
               <p className="sidebar-empty">
                 {showingFavorites
-                  ? "No favorites yet. Tap the heart on a station to save it here."
+                  ? "No favorites yet. Tap the heart on a station to save it here. Saved stations appear in yellow on the globe."
                   : showingRecent
                     ? "No recent stations yet. Spin the globe to start exploring."
                     : "No stations found"}
               </p>
             ) : showingFavorites ? (
               <p className="sidebar-footnote">
-                Saved on this device. Favorites stay in this browser only.
+                Saved on this device. Favorites stay in this browser only and
+                appear in yellow on the globe.
               </p>
             ) : showingRecent ? (
               <p className="sidebar-footnote">

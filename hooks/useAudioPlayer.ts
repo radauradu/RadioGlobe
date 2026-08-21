@@ -104,6 +104,7 @@ export function useAudioPlayer(
   const mutedRef = useRef(false);
   const volumeRef = useRef(0.72);
   const playbackGenerationRef = useRef(0);
+  const attachGenerationRef = useRef(0);
   const usingRelayRef = useRef(false);
   const unavailableRef = useRef(onStationUnavailable);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -126,7 +127,23 @@ export function useAudioPlayer(
   }, [volume]);
 
   const destroyHls = useCallback(() => {
-    hlsRef.current?.destroy();
+    const hls = hlsRef.current;
+    if (!hls) return;
+    try {
+      hls.stopLoad();
+    } catch {
+      // Already stopped.
+    }
+    try {
+      hls.detachMedia();
+    } catch {
+      // Already detached.
+    }
+    try {
+      hls.destroy();
+    } catch {
+      // Already destroyed.
+    }
     hlsRef.current = null;
   }, []);
 
@@ -213,6 +230,38 @@ export function useAudioPlayer(
     stopTuningSound();
   }, []);
 
+  const haltAudioOutput = useCallback(() => {
+    attachGenerationRef.current += 1;
+    silencePlaybackOutput();
+    destroyHls();
+    const audio = bindSharedAudioElement(audioRef);
+    if (audio) hardStopAudioElement(audio);
+    for (const radioAudio of audioElementRegistry()) {
+      hardStopAudioElement(radioAudio);
+    }
+    const context = audioContextRef.current;
+    const outputGain = outputGainRef.current;
+    if (context && outputGain) {
+      try {
+        outputGain.gain.setValueAtTime(0, context.currentTime);
+      } catch {
+        // Context may be closed.
+      }
+    }
+    if (context?.state === "running") {
+      void context.suspend().catch(() => undefined);
+    }
+  }, [destroyHls, silencePlaybackOutput]);
+
+  const cancelPlaybackIntent = useCallback(() => {
+    playbackGenerationRef.current += 1;
+    wantPlayingRef.current = false;
+    setWantsPlayback(false);
+    startedPlayingRef.current = false;
+    clearAutoUnmute();
+    haltAudioOutput();
+  }, [clearAutoUnmute, haltAudioOutput]);
+
   // Autoplay can start the media element while leaving Web Audio suspended.
   // Resume the analyser on the next genuine user gesture so the spectrum
   // follows the music instead of remaining a flat line.
@@ -244,17 +293,16 @@ export function useAudioPlayer(
     (nextStation: RadioStation, relay: boolean) => {
       const audio = bindSharedAudioElement(audioRef);
       if (!audio) return;
-      destroyHls();
+      if (!wantPlayingRef.current) return;
+
+      haltAudioOutput();
+      const attachGen = attachGenerationRef.current;
       usingRelayRef.current = relay;
 
       const url = sourceFor(nextStation, relay);
       const isHls =
         /\.m3u8(?:$|\?)/i.test(nextStation.streamUrl) ||
         nextStation.codec.includes("HLS");
-
-      audio.pause();
-      audio.removeAttribute("src");
-      audio.load();
 
       if (isHls && Hls.isSupported()) {
         const hls = new Hls({
@@ -266,14 +314,23 @@ export function useAudioPlayer(
         hlsRef.current = hls;
         hls.attachMedia(audio);
         hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-          if (!wantPlayingRef.current) {
+          if (
+            attachGenerationRef.current !== attachGen ||
+            !wantPlayingRef.current
+          ) {
             hls.stopLoad();
             return;
           }
           hls.loadSource(url);
         });
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          if (!wantPlayingRef.current || !audio.paused) return;
+          if (
+            attachGenerationRef.current !== attachGen ||
+            !wantPlayingRef.current ||
+            !audio.paused
+          ) {
+            return;
+          }
           if (prefersMutedAutoplay()) {
             audio.muted = true;
           }
@@ -281,7 +338,10 @@ export function useAudioPlayer(
         });
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (!data.fatal) return;
-          if (!wantPlayingRef.current) {
+          if (
+            attachGenerationRef.current !== attachGen ||
+            !wantPlayingRef.current
+          ) {
             hls.destroy();
             if (hlsRef.current === hls) hlsRef.current = null;
             return;
@@ -304,7 +364,7 @@ export function useAudioPlayer(
         audio.load();
       }
     },
-      [destroyHls, sourceFor],
+      [haltAudioOutput, sourceFor],
     );
 
   useEffect(() => {
@@ -422,8 +482,8 @@ export function useAudioPlayer(
 
     const onPlaying = () => {
       if (!wantPlayingRef.current) {
-        audio.muted = true;
-        audio.pause();
+        hardStopAudioElement(audio);
+        haltAudioOutput();
         return;
       }
       startedPlayingRef.current = true;
@@ -478,35 +538,18 @@ export function useAudioPlayer(
       audio.removeEventListener("waiting", onWaiting);
       audio.removeEventListener("error", onError);
     };
-  }, [attachSource]);
+  }, [attachSource, haltAudioOutput]);
 
   const pausePlayback = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    clearAutoUnmute();
-    playbackGenerationRef.current += 1;
-    wantPlayingRef.current = false;
-    setWantsPlayback(false);
-    startedPlayingRef.current = false;
-    silencePlaybackOutput();
-    hlsRef.current?.stopLoad();
-    destroyHls();
-    for (const radioAudio of audioElementRegistry()) {
-      hardStopAudioElement(radioAudio);
-    }
+    cancelPlaybackIntent();
     setStatus("paused");
 
     window.setTimeout(() => {
       if (!wantPlayingRef.current) {
-        for (const radioAudio of audioElementRegistry()) {
-          if (!radioAudio.paused) {
-            hardStopAudioElement(radioAudio);
-          }
-        }
+        haltAudioOutput();
       }
     }, 0);
-  }, [clearAutoUnmute, destroyHls, silencePlaybackOutput]);
+  }, [cancelPlaybackIntent, haltAudioOutput]);
 
   const tune = useCallback(
     async (nextStation: RadioStation, autoplay = true) => {
@@ -532,23 +575,31 @@ export function useAudioPlayer(
         void playTuningJingle();
       }
 
-      playbackGenerationRef.current += 1;
-      const generation = playbackGenerationRef.current;
+      const shouldPlay = autoplay && wantPlayingRef.current;
 
       stationRef.current = nextStation;
       startedPlayingRef.current = false;
       setStation(nextStation);
       setStreamTitle(null);
       setError(null);
-      setStatus(autoplay ? "loading" : "paused");
-      wantPlayingRef.current = autoplay;
-      setWantsPlayback(autoplay);
-      audio.muted = autoplay ? mutedRef.current : true;
+
+      if (!shouldPlay) {
+        cancelPlaybackIntent();
+        setStatus("paused");
+        return;
+      }
+
+      playbackGenerationRef.current += 1;
+      const generation = playbackGenerationRef.current;
+
+      wantPlayingRef.current = true;
+      setWantsPlayback(true);
+      setStatus("loading");
+      audio.muted = mutedRef.current;
       attachSource(nextStation, true);
 
-      if (autoplay) {
-        clearAutoUnmute();
-        try {
+      clearAutoUnmute();
+      try {
           if (
             playbackGenerationRef.current !== generation ||
             !wantPlayingRef.current
@@ -600,11 +651,14 @@ export function useAudioPlayer(
           setStatus("paused");
           setError("Tap play to start this station.");
         }
-      } else {
-        hlsRef.current?.stopLoad();
-      }
     },
-    [attachSource, attemptPlayback, clearAutoUnmute, restoreAudibleOutput],
+    [
+      attachSource,
+      attemptPlayback,
+      cancelPlaybackIntent,
+      clearAutoUnmute,
+      restoreAudibleOutput,
+    ],
   );
 
   const togglePlayback = useCallback(async () => {

@@ -174,11 +174,16 @@ function stationIsAtViewportCenter(
   );
 }
 
+interface FocusRequest extends Coordinates {
+  nonce: number;
+}
+
 interface GlobeViewportProps {
   stations: StationPoint[];
   selectedStation: RadioStation | null;
   favoriteStationIds?: readonly string[];
   isPlaying?: boolean;
+  focusCoordinates?: FocusRequest | null;
   onSelectStation: (station: StationPoint) => void;
   onCenterSettled: (
     coordinates: Coordinates,
@@ -307,6 +312,7 @@ export default function GlobeViewport({
   selectedStation,
   favoriteStationIds = [],
   isPlaying = false,
+  focusCoordinates = null,
   onSelectStation,
   onCenterSettled,
   onInteraction,
@@ -349,6 +355,16 @@ export default function GlobeViewport({
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
+
+  useEffect(() => {
+    if (!focusCoordinates) return;
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+
+    programmaticCenterRef.current = true;
+    suppressNextMoveEndRef.current = true;
+    centerGlobeOnCoordinates(viewer, focusCoordinates, { duration: 1.1 });
+  }, [focusCoordinates?.nonce]);
 
   useEffect(() => {
     callbacksRef.current = {
