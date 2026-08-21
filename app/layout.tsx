@@ -12,6 +12,13 @@ export const metadata: Metadata = {
   title: "Radio Globe",
   description: "Listen to live radio stations around the world.",
   applicationName: "Radio Globe",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "48x48" },
+      { url: "/icon", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/apple-icon", type: "image/png", sizes: "180x180" }],
+  },
   appleWebApp: {
     capable: true,
     title: "Radio Globe",

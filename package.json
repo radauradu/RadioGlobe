@@ -12,7 +12,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "generate:favicons": "node scripts/generate-favicons.mjs"
   },
   "repository": {
     "type": "git",

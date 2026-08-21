@@ -44,17 +44,30 @@ export default function LiquidGlass({
   useLayoutEffect(() => {
     const node = ref.current;
     if (!node) return;
+
+    let frame = 0;
     const update = () => {
-      const box = node.getBoundingClientRect();
-      setSize({
-        width: Math.max(1, Math.round(box.width)),
-        height: Math.max(1, Math.round(box.height)),
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const box = node.getBoundingClientRect();
+        const width = Math.max(1, Math.round(box.width));
+        const height = Math.max(1, Math.round(box.height));
+        setSize((prev) =>
+          prev.width === width && prev.height === height
+            ? prev
+            : { width, height },
+        );
       });
     };
+
     update();
     const observer = new ResizeObserver(update);
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (frame) window.cancelAnimationFrame(frame);
+    };
   }, []);
 
   const cornerRadius = pill
