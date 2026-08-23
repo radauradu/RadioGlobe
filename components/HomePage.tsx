@@ -314,7 +314,7 @@ export default function HomePage() {
 
   useMediaSession({
     player,
-    station: selectedStation,
+    station: player.station ?? selectedStation,
     onRandomize: randomizeStation,
     onPlayPrevious: playPreviousStation,
   });
