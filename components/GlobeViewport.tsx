@@ -1,34 +1,60 @@
 "use client";
 
-import {
-  ArcGisMapServerImageryProvider,
-  BlendOption,
-  CameraEventType,
-  Cartesian2,
-  Cartesian3,
-  Cartographic,
-  Color,
-  EasingFunction,
-  ImageryLayer,
-  KeyboardEventModifier,
-  Math as CesiumMath,
-  PointPrimitiveCollection,
-  SceneTransforms,
-  ScreenSpaceEventHandler,
-  ScreenSpaceEventType,
-  Viewer,
-  WebMapTileServiceImageryProvider,
-  type PointPrimitive,
-} from "cesium";
+import type * as Cesium from "cesium";
+import { LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { loadCesium, type CesiumModule } from "@/lib/loadCesium";
 import type { RadioStation, StationPoint } from "@/lib/radioApi";
 import { nearestStations, type Coordinates } from "@/lib/spatial";
 
-const STATION_COLOR = Color.fromCssColorString("#ff1493");
-const FAVORITE_COLOR = Color.fromCssColorString("#FFFF00");
-const PLAYING_COLOR = Color.WHITE;
+type CesiumNS = CesiumModule;
 
-function pinAppearance(color: Color) {
+let BlendOption: CesiumNS["BlendOption"];
+let CameraEventType: CesiumNS["CameraEventType"];
+let Cartesian2: CesiumNS["Cartesian2"];
+let Cartesian3: CesiumNS["Cartesian3"];
+let Cartographic: CesiumNS["Cartographic"];
+let Color: CesiumNS["Color"];
+let EasingFunction: CesiumNS["EasingFunction"];
+let ImageryLayer: CesiumNS["ImageryLayer"];
+let KeyboardEventModifier: CesiumNS["KeyboardEventModifier"];
+let CesiumMath: CesiumNS["Math"];
+let PointPrimitiveCollection: CesiumNS["PointPrimitiveCollection"];
+let SceneTransforms: CesiumNS["SceneTransforms"];
+let ScreenSpaceEventHandler: CesiumNS["ScreenSpaceEventHandler"];
+let ScreenSpaceEventType: CesiumNS["ScreenSpaceEventType"];
+let UrlTemplateImageryProvider: CesiumNS["UrlTemplateImageryProvider"];
+let Viewer: CesiumNS["Viewer"];
+let WebMapTileServiceImageryProvider: CesiumNS["WebMapTileServiceImageryProvider"];
+
+let STATION_COLOR: Cesium.Color;
+let FAVORITE_COLOR: Cesium.Color;
+let PLAYING_COLOR: Cesium.Color;
+
+function bindCesium(cesium: CesiumNS) {
+  BlendOption = cesium.BlendOption;
+  CameraEventType = cesium.CameraEventType;
+  Cartesian2 = cesium.Cartesian2;
+  Cartesian3 = cesium.Cartesian3;
+  Cartographic = cesium.Cartographic;
+  Color = cesium.Color;
+  EasingFunction = cesium.EasingFunction;
+  ImageryLayer = cesium.ImageryLayer;
+  KeyboardEventModifier = cesium.KeyboardEventModifier;
+  CesiumMath = cesium.Math;
+  PointPrimitiveCollection = cesium.PointPrimitiveCollection;
+  SceneTransforms = cesium.SceneTransforms;
+  ScreenSpaceEventHandler = cesium.ScreenSpaceEventHandler;
+  ScreenSpaceEventType = cesium.ScreenSpaceEventType;
+  UrlTemplateImageryProvider = cesium.UrlTemplateImageryProvider;
+  Viewer = cesium.Viewer;
+  WebMapTileServiceImageryProvider = cesium.WebMapTileServiceImageryProvider;
+  STATION_COLOR = Color.fromCssColorString("#ff1493")!;
+  FAVORITE_COLOR = Color.fromCssColorString("#FFFF00")!;
+  PLAYING_COLOR = Color.WHITE;
+}
+
+function pinAppearance(color: Cesium.Color) {
   return {
     color,
     outlineColor: Color.clone(color),
@@ -36,13 +62,13 @@ function pinAppearance(color: Color) {
   };
 }
 
-function applyPinAppearance(point: PointPrimitive, color: Color) {
+function applyPinAppearance(point: Cesium.PointPrimitive, color: Cesium.Color) {
   point.color = color;
   point.outlineColor = Color.clone(color);
   point.outlineWidth = 0;
 }
-const WORLD_IMAGERY =
-  "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer";
+const WORLD_IMAGERY_TILES =
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 const NIGHT_IMAGERY =
   "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/default/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.png";
 const POINTER_CLICK_THRESHOLD = 6;
@@ -100,7 +126,7 @@ function pinColorForStation(
 }
 
 function applyStationPin(
-  point: PointPrimitive,
+  point: Cesium.PointPrimitive,
   stationId: string,
   station: { votes?: number; clickCount?: number },
   favoriteIds: ReadonlySet<string>,
@@ -116,7 +142,7 @@ function applyStationPin(
 }
 
 function refreshAllPinAppearances(
-  renderedPoints: Map<string, PointPrimitive>,
+  renderedPoints: Map<string, Cesium.PointPrimitive>,
   favoriteIds: ReadonlySet<string>,
   selectedStationId: string | null,
   isPlaying: boolean,
@@ -135,7 +161,7 @@ function refreshAllPinAppearances(
 }
 
 function centerGlobeOnCoordinates(
-  viewer: Viewer,
+  viewer: Cesium.Viewer,
   coordinates: { lat: number; lng: number },
   options?: { duration?: number },
 ) {
@@ -155,7 +181,7 @@ function centerGlobeOnCoordinates(
 }
 
 function stationIsAtViewportCenter(
-  viewer: Viewer,
+  viewer: Cesium.Viewer,
   station: { lat: number; lng: number },
 ): boolean {
   const canvas = viewer.scene.canvas;
@@ -214,8 +240,8 @@ function stationFromPick(picked: unknown): StationPoint | null {
 }
 
 function nearestStationAtScreenPosition(
-  viewer: Viewer,
-  position: Cartesian2,
+  viewer: Cesium.Viewer,
+  position: Cesium.Cartesian2,
   stations: StationPoint[],
   radius: number,
 ): StationPoint | null {
@@ -260,7 +286,7 @@ function nearestStationAtScreenPosition(
   return nearest;
 }
 
-function coordinatesAtViewportCenter(viewer: Viewer): Coordinates | null {
+function coordinatesAtViewportCenter(viewer: Cesium.Viewer): Coordinates | null {
   const canvas = viewer.scene.canvas;
   const center = new Cartesian2(
     canvas.clientWidth / 2,
@@ -280,7 +306,7 @@ function coordinatesAtViewportCenter(viewer: Viewer): Coordinates | null {
 }
 
 function stationAtViewportCenter(
-  viewer: Viewer,
+  viewer: Cesium.Viewer,
   stations: StationPoint[],
 ): StationPoint | null {
   const canvas = viewer.scene.canvas;
@@ -293,8 +319,8 @@ function stationAtViewportCenter(
 }
 
 function coordinatesAtScreenPosition(
-  viewer: Viewer,
-  position: Cartesian2,
+  viewer: Cesium.Viewer,
+  position: Cesium.Cartesian2,
 ): Coordinates | null {
   const cartesian = viewer.camera.pickEllipsoid(
     position,
@@ -321,13 +347,13 @@ export default function GlobeViewport({
   onNavigationSettled,
 }: GlobeViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const viewerRef = useRef<Viewer | null>(null);
-  const pointCollectionRef = useRef<PointPrimitiveCollection | null>(null);
+  const viewerRef = useRef<Cesium.Viewer | null>(null);
+  const pointCollectionRef = useRef<Cesium.PointPrimitiveCollection | null>(null);
   const stationsRef = useRef(stations);
   const selectedStationRef = useRef(selectedStation);
   const favoriteIdsRef = useRef(new Set(favoriteStationIds));
   const isPlayingRef = useRef(isPlaying);
-  const renderedPointsRef = useRef(new Map<string, PointPrimitive>());
+  const renderedPointsRef = useRef(new Map<string, Cesium.PointPrimitive>());
   const pendingStationsRef = useRef<StationPoint[]>([]);
   const pendingStationIdsRef = useRef(new Set<string>());
   const pinRevealFrameRef = useRef<number | null>(null);
@@ -338,6 +364,7 @@ export default function GlobeViewport({
   const isDraggingRef = useRef(false);
   const hasAssignedInitialCenterRef = useRef(false);
   const [viewerReady, setViewerReady] = useState(false);
+  const [globeFailed, setGlobeFailed] = useState(false);
   const callbacksRef = useRef({
     onSelectStation,
     onCenterSettled,
@@ -361,7 +388,7 @@ export default function GlobeViewport({
   }
 
   function addRenderedStation(
-    collection: PointPrimitiveCollection,
+    collection: Cesium.PointPrimitiveCollection,
     station: StationPoint,
   ) {
     const point = collection.add({
@@ -456,20 +483,23 @@ export default function GlobeViewport({
     if (!container) return;
     let cancelled = false;
     let settleTimer = 0;
-    let viewer: Viewer | null = null;
-    let clickHandler: ScreenSpaceEventHandler | null = null;
+    let viewer: Cesium.Viewer | null = null;
+    let clickHandler: Cesium.ScreenSpaceEventHandler | null = null;
     let removeMoveStart: (() => void) | null = null;
     let removeMoveEnd: (() => void) | null = null;
     let removeNavigationListeners: (() => void) | null = null;
     const renderedPoints = renderedPointsRef.current;
 
     async function initialize() {
-      const satelliteProvider = await ArcGisMapServerImageryProvider.fromUrl(
-        WORLD_IMAGERY,
-        {
-          enablePickFeatures: false,
-        },
-      );
+      bindCesium(await loadCesium());
+      if (cancelled || !container) return;
+
+      const satelliteProvider = new UrlTemplateImageryProvider({
+        url: WORLD_IMAGERY_TILES,
+        maximumLevel: 19,
+        enablePickFeatures: false,
+        credit: "Esri, Maxar, Earthstar Geographics",
+      });
       const nightProvider = new WebMapTileServiceImageryProvider({
         url: NIGHT_IMAGERY,
         layer: "VIIRS_Black_Marble",
@@ -581,7 +611,7 @@ export default function GlobeViewport({
       const setCanvasCursor = (cursor: string) => {
         scene.canvas.style.cursor = cursor;
       };
-      const pickStationAt = (position: Cartesian2): StationPoint | null => {
+      const pickStationAt = (position: Cesium.Cartesian2): StationPoint | null => {
         if (!viewer) return null;
         const pickedObject = scene.pick(position);
         const pickedStation = stationFromPick(pickedObject);
@@ -601,7 +631,7 @@ export default function GlobeViewport({
         );
       };
       let lastSelection: { id: string; at: number } | null = null;
-      const selectStationAt = (position: Cartesian2) => {
+      const selectStationAt = (position: Cesium.Cartesian2) => {
         if (!viewer) return;
         const directlyPicked = pickStationAt(position);
         const coordinates = coordinatesAtScreenPosition(viewer, position);
@@ -628,7 +658,7 @@ export default function GlobeViewport({
           centerGlobeOnCoordinates(viewer, station);
         }
       };
-      const updateHoverCursor = (position: Cartesian2) => {
+      const updateHoverCursor = (position: Cesium.Cartesian2) => {
         if (pointerDownRef.current) return;
         setCanvasCursor(
           pickStationAt(position) ? STATION_CURSOR : DEFAULT_CURSOR,
@@ -860,10 +890,10 @@ export default function GlobeViewport({
       };
 
       clickHandler = new ScreenSpaceEventHandler(scene.canvas);
-      clickHandler.setInputAction((movement: { position: Cartesian2 }) => {
+      clickHandler.setInputAction((movement: { position: Cesium.Cartesian2 }) => {
         if (!isDraggingRef.current) selectStationAt(movement.position);
       }, ScreenSpaceEventType.LEFT_CLICK);
-      clickHandler.setInputAction((movement: { endPosition: Cartesian2 }) => {
+      clickHandler.setInputAction((movement: { endPosition: Cesium.Cartesian2 }) => {
         updateHoverCursor(movement.endPosition);
         scene.requestRender();
       }, ScreenSpaceEventType.MOUSE_MOVE);
@@ -980,6 +1010,7 @@ export default function GlobeViewport({
 
     void initialize().catch((error) => {
       console.error("Unable to initialize the satellite globe", error);
+      if (!cancelled) setGlobeFailed(true);
     });
     return () => {
       cancelled = true;
@@ -1090,10 +1121,20 @@ export default function GlobeViewport({
   }, [selectedStation, isPlaying, favoriteStationIds]);
 
   return (
-    <div
-      ref={containerRef}
-      className="absolute inset-0 touch-none overflow-hidden bg-transparent"
-      aria-label="Interactive high-resolution globe of radio stations"
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="absolute inset-0 touch-none overflow-hidden bg-transparent"
+        aria-label="Interactive high-resolution globe of radio stations"
+      />
+      {!viewerReady && !globeFailed ? (
+        <div className="absolute inset-0 grid place-items-center">
+          <div className="apple-panel flex items-center gap-2.5 px-4 py-3">
+            <LoaderCircle className="h-4 w-4 animate-spin text-[#86868b]" />
+            <span className="text-[15px] text-[#6e6e73]">Loading</span>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

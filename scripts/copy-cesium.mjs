@@ -9,8 +9,13 @@ const packageJson = JSON.parse(
 );
 const marker = path.join(target, ".version");
 
+const isVercel = process.env.VERCEL === "1";
+
 try {
-  if ((await readFile(marker, "utf8")).trim() === packageJson.version) {
+  if (
+    !isVercel &&
+    (await readFile(marker, "utf8")).trim() === packageJson.version
+  ) {
     process.exit(0);
   }
 } catch {
