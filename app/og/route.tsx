@@ -1,9 +1,59 @@
 import { ImageResponse } from "next/og";
-import { fetchStationById } from "@/lib/radioApi";
 import { formatStationPlace } from "@/lib/place";
 import { readStationIdFromSearchParams } from "@/lib/siteMetadata";
 
 export const runtime = "edge";
+
+const OG_CACHE_CONTROL =
+  "public, s-maxage=86400, stale-while-revalidate=604800";
+
+const RADIO_BROWSER_MIRRORS = [
+  "https://de1.api.radio-browser.info",
+  "https://nl1.api.radio-browser.info",
+  "https://at1.api.radio-browser.info",
+] as const;
+
+const RADIO_BROWSER_USER_AGENT =
+  "RadioGlobe/1.0 (https://github.com/radauradu/RadioGlobe)";
+
+interface OgStation {
+  name: string;
+  state?: string;
+  country?: string;
+}
+
+async function fetchOgStation(stationId: string): Promise<OgStation | null> {
+  for (const mirror of RADIO_BROWSER_MIRRORS) {
+    try {
+      const response = await fetch(
+        `${mirror}/json/stations/byuuid/${encodeURIComponent(stationId)}`,
+        {
+          headers: { "User-Agent": RADIO_BROWSER_USER_AGENT },
+          next: { revalidate: 900 },
+        },
+      );
+      if (!response.ok) continue;
+
+      const rows = (await response.json()) as Array<{
+        name?: string;
+        state?: string;
+        country?: string;
+      }>;
+      const row = rows[0];
+      const name = row?.name?.trim();
+      if (!name) continue;
+
+      return {
+        name,
+        state: row.state?.trim() ?? "",
+        country: row.country?.trim() ?? "",
+      };
+    } catch {
+      // Try the next mirror.
+    }
+  }
+  return null;
+}
 
 function ogCard(title: string, subtitle: string) {
   return new ImageResponse(
@@ -53,10 +103,16 @@ function ogCard(title: string, subtitle: string) {
             {subtitle}
           </div>
         </div>
-        <div style={{ fontSize: 24, opacity: 0.55 }}>Live radio around the world</div>
+        <div style={{ fontSize: 24, opacity: 0.55 }}>
+          Live radio around the world
+        </div>
       </div>
     ),
-    { width: 1200, height: 630 },
+    {
+      width: 1200,
+      height: 630,
+      headers: { "Cache-Control": OG_CACHE_CONTROL },
+    },
   );
 }
 
@@ -69,12 +125,18 @@ export async function GET(request: Request) {
   }
 
   try {
-    const station = await fetchStationById(stationId);
+    const station = await fetchOgStation(stationId);
     if (!station) {
-      return ogCard("Radio Globe", "Listen to live radio stations around the world.");
+      return ogCard(
+        "Radio Globe",
+        "Listen to live radio stations around the world.",
+      );
     }
     return ogCard(station.name, formatStationPlace(station).line);
   } catch {
-    return ogCard("Radio Globe", "Listen to live radio stations around the world.");
+    return ogCard(
+      "Radio Globe",
+      "Listen to live radio stations around the world.",
+    );
   }
 }
