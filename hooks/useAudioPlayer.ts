@@ -115,6 +115,7 @@ export function useAudioPlayer(
     (nextStation: RadioStation, relay: boolean) => void
   >(() => undefined);
   const autoUnmuteCleanupRef = useRef<(() => void) | null>(null);
+  const suppressPlatformPauseRef = useRef(false);
 
   bindSharedAudioElement(audioRef);
 
@@ -231,6 +232,7 @@ export function useAudioPlayer(
   }, []);
 
   const haltAudioOutput = useCallback(() => {
+    suppressPlatformPauseRef.current = true;
     attachGenerationRef.current += 1;
     silencePlaybackOutput();
     destroyHls();
@@ -251,6 +253,9 @@ export function useAudioPlayer(
     if (context?.state === "running") {
       void context.suspend().catch(() => undefined);
     }
+    window.setTimeout(() => {
+      suppressPlatformPauseRef.current = false;
+    }, 0);
   }, [destroyHls, silencePlaybackOutput]);
 
   const cancelPlaybackIntent = useCallback(() => {
@@ -491,11 +496,23 @@ export function useAudioPlayer(
       setError(null);
     };
     const onPause = () => {
-      if (
-        !wantPlayingRef.current &&
-        stationRef.current &&
-        !audio.ended
-      ) {
+      if (suppressPlatformPauseRef.current) return;
+
+      if (wantPlayingRef.current && stationRef.current && !audio.ended) {
+        playbackGenerationRef.current += 1;
+        wantPlayingRef.current = false;
+        setWantsPlayback(false);
+        startedPlayingRef.current = false;
+        clearAutoUnmute();
+        destroyHls();
+        setStatus("paused");
+        if ("mediaSession" in navigator) {
+          navigator.mediaSession.playbackState = "paused";
+        }
+        return;
+      }
+
+      if (!wantPlayingRef.current && stationRef.current && !audio.ended) {
         setStatus("paused");
       }
     };
@@ -538,18 +555,15 @@ export function useAudioPlayer(
       audio.removeEventListener("waiting", onWaiting);
       audio.removeEventListener("error", onError);
     };
-  }, [attachSource, haltAudioOutput]);
+  }, [attachSource, clearAutoUnmute, destroyHls, haltAudioOutput]);
 
   const pausePlayback = useCallback(() => {
     cancelPlaybackIntent();
     setStatus("paused");
-
-    window.setTimeout(() => {
-      if (!wantPlayingRef.current) {
-        haltAudioOutput();
-      }
-    }, 0);
-  }, [cancelPlaybackIntent, haltAudioOutput]);
+    if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+      navigator.mediaSession.playbackState = "paused";
+    }
+  }, [cancelPlaybackIntent]);
 
   const tune = useCallback(
     async (nextStation: RadioStation, autoplay = true) => {
@@ -729,6 +743,13 @@ export function useAudioPlayer(
     pausePlayback,
   ]);
 
+  const resumePlayback = useCallback(async () => {
+    const audio = bindSharedAudioElement(audioRef);
+    if (!audio || !stationRef.current) return;
+    if (wantPlayingRef.current) return;
+    await togglePlayback();
+  }, [togglePlayback]);
+
   const setVolume = useCallback((value: number) => {
     const normalized = Math.max(0, Math.min(1, value));
     setVolumeState(normalized);
@@ -754,15 +775,17 @@ export function useAudioPlayer(
     const controller = new AbortController();
 
     const updateMetadata = async () => {
+      const stationId = station.id;
       try {
         const response = await fetch(
-          `/api/metadata/${encodeURIComponent(station.id)}`,
+          `/api/metadata/${encodeURIComponent(stationId)}`,
           { signal: controller.signal },
         );
         if (!response.ok) return;
         const data = (await response.json()) as {
           streamTitle: string | null;
         };
+        if (stationRef.current?.id !== stationId) return;
         setStreamTitle(data.streamTitle);
       } catch {
         // Metadata is optional; playback remains uninterrupted.
@@ -818,6 +841,8 @@ export function useAudioPlayer(
     levels: status === "playing" ? levels : EMPTY_LEVELS,
     tune,
     togglePlayback,
+    pausePlayback,
+    resumePlayback,
     setVolume,
     toggleMute,
   };
