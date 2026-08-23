@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import "cesium/Build/Cesium/Widgets/widgets.css";
 import "./globals.css";
 import { buildOgImageUrl, resolveMetadataBase } from "@/lib/siteMetadata";
 
@@ -52,6 +51,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <link rel="stylesheet" href="/cesium/Widgets/widgets.css" />
         <Script id="cesium-base-url" strategy="beforeInteractive">
           {"window.CESIUM_BASE_URL='/cesium/';"}
         </Script>

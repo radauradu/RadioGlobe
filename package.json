@@ -5,10 +5,10 @@
   "private": true,
   "scripts": {
     "cesium:assets": "node scripts/copy-cesium.mjs",
+    "postinstall": "npm run cesium:assets",
     "predev": "npm run cesium:assets",
     "dev": "next dev",
-    "prebuild": "npm run cesium:assets",
-    "build": "next build",
+    "build": "npm run cesium:assets && next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
