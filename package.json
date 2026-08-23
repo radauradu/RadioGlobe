@@ -1,0 +1,52 @@
+{
+  "name": "radioglobe",
+  "version": "1.0.0",
+  "description": "Explore live radio stations on an interactive 3D globe",
+  "private": true,
+  "scripts": {
+    "cesium:assets": "node scripts/copy-cesium.mjs",
+    "predev": "npm run cesium:assets",
+    "dev": "next dev",
+    "prebuild": "npm run cesium:assets",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "generate:favicons": "node scripts/generate-favicons.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/radauradu/RadioGlobe.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/radauradu/RadioGlobe/issues"
+  },
+  "homepage": "https://github.com/radauradu/RadioGlobe#readme",
+  "dependencies": {
+    "@rapideditor/country-coder": "^5.6.1",
+    "cesium": "^1.144.0",
+    "framer-motion": "^13.1.0",
+    "hls.js": "^1.7.0",
+    "lucide-react": "^1.32.0",
+    "next": "^16.3.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tz-lookup": "^6.1.25"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@types/tz-lookup": "^6.1.2",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11"
+  }
+}
