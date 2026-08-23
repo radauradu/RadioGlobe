@@ -828,6 +828,28 @@ export function useAudioPlayer(
     await togglePlayback();
   }, [togglePlayback]);
 
+  const unlockPlayback = useCallback(async () => {
+    configurePlatformAudioSession();
+    const audio = bindSharedAudioElement(audioRef);
+    if (!audio) return;
+
+    audio.muted = false;
+    try {
+      if (!audio.getAttribute("src")) {
+        audio.src =
+          "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+        await audio.play();
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+      } else if (audio.paused) {
+        await audio.play();
+      }
+    } catch {
+      // Gesture captured even if this silent start is rejected.
+    }
+  }, []);
+
   const setVolume = useCallback((value: number) => {
     const normalized = Math.max(0, Math.min(1, value));
     setVolumeState(normalized);
@@ -940,6 +962,7 @@ export function useAudioPlayer(
     togglePlayback,
     pausePlayback,
     resumePlayback,
+    unlockPlayback,
     setVolume,
     toggleMute,
   };

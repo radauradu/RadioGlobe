@@ -23,6 +23,25 @@ import {
 import { AUTO_SKIP_CAP, nextWorkingStation } from "@/lib/skipStation";
 import { nearestStations, type Coordinates } from "@/lib/spatial";
 
+function stationsWithCoordinates(stations: StationPoint[]) {
+  return stations.filter(
+    (station) =>
+      Number.isFinite(station.lat) &&
+      Number.isFinite(station.lng) &&
+      !(Math.abs(station.lat) < 0.2 && Math.abs(station.lng) < 0.2),
+  );
+}
+
+function geolocationErrorMessage(error: GeolocationPositionError) {
+  if (error.code === error.PERMISSION_DENIED) {
+    return "Location access was denied. Enable it in Settings, then try again.";
+  }
+  if (error.code === error.TIMEOUT) {
+    return "Could not get your location. Try again.";
+  }
+  return "Location is unavailable on this device.";
+}
+
 interface FocusRequest extends Coordinates {
   nonce: number;
 }
@@ -63,6 +82,7 @@ export default function HomePage() {
   const everPlayedRef = useRef(false);
   const autoSkipCountRef = useRef(0);
   const nearMePendingRef = useRef(false);
+  const pendingNearMeCoordinatesRef = useRef<Coordinates | null>(null);
   const failedStationIdsRef = useRef(failedStationIds);
   const selectableStationsRef = useRef<StationPoint[]>([]);
   const playerRef = useRef<ReturnType<typeof useAudioPlayer> | null>(null);
@@ -319,37 +339,68 @@ export default function HomePage() {
     onPlayPrevious: playPreviousStation,
   });
 
+  const applyNearMe = useCallback(
+    (coordinates: Coordinates) => {
+      const located = stationsWithCoordinates(selectableStationsRef.current);
+      if (located.length === 0) {
+        pendingNearMeCoordinatesRef.current = coordinates;
+        setFocusRequest({ ...coordinates, nonce: Date.now() });
+        setStatusOverride("Loading stations near you…");
+        return;
+      }
+
+      const next = nearestStations(coordinates, located, 1)[0];
+      if (!next) {
+        pendingNearMeCoordinatesRef.current = null;
+        setStatusOverride("No stations found near you.");
+        return;
+      }
+
+      pendingNearMeCoordinatesRef.current = null;
+      nearMePendingRef.current = true;
+      setStatusOverride(null);
+      focusOnStation(next);
+      void selectPoint(next, true);
+    },
+    [focusOnStation, selectPoint],
+  );
+
+  useEffect(() => {
+    const pending = pendingNearMeCoordinatesRef.current;
+    if (!pending) return;
+    if (stationsWithCoordinates(selectableStations).length === 0) return;
+    applyNearMe(pending);
+  }, [applyNearMe, selectableStations]);
+
   const handleNearMe = useCallback(() => {
+    void player.unlockPlayback();
+
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setStatusOverride("Location is not available in this browser.");
       return;
     }
 
+    setStatusOverride("Finding the nearest station…");
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const coordinates = {
+        applyNearMe({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
-        };
-        nearMePendingRef.current = true;
-        setFocusRequest({ ...coordinates, nonce: Date.now() });
-        setStatusOverride(null);
-
-        const next = nearestStations(coordinates, selectableStations, 1)[0];
-        if (!next) {
-          setStatusOverride("No stations found near you.");
-          nearMePendingRef.current = false;
-          return;
-        }
-
-        void selectPoint(next, true);
+        });
       },
-      () => {
-        setStatusOverride("Location access was denied.");
+      (error) => {
+        pendingNearMeCoordinatesRef.current = null;
+        nearMePendingRef.current = false;
+        setStatusOverride(geolocationErrorMessage(error));
       },
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
+      {
+        enableHighAccuracy: true,
+        timeout: 15_000,
+        maximumAge: 120_000,
+      },
     );
-  }, [selectPoint, selectableStations]);
+  }, [applyNearMe, player]);
 
   const handleCenterSettled = useCallback(
     async (coordinates: Coordinates, stationInCircle: StationPoint | null) => {
