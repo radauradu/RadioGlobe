@@ -29,4 +29,5 @@ for (const directory of ["Assets", "ThirdParty", "Widgets", "Workers"]) {
     recursive: true,
   });
 }
+await cp(path.join(source, "Cesium.js"), path.join(target, "Cesium.js"));
 await writeFile(marker, `${packageJson.version}\n`);

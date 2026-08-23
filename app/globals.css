@@ -79,6 +79,15 @@ body {
   touch-action: none;
 }
 
+.cesium-viewer-bottom,
+.cesium-viewer-toolbar,
+.cesium-viewer-animationContainer,
+.cesium-viewer-timelineContainer,
+.cesium-viewer-fullscreenContainer,
+.cesium-widget-credits {
+  display: none !important;
+}
+
 button,
 input,
 select,
