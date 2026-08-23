@@ -685,6 +685,9 @@ button {
   background: #fff;
   color: #111;
   cursor: pointer;
+  touch-action: manipulation;
+  position: relative;
+  z-index: 3;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
 }
 
@@ -910,11 +913,45 @@ button {
   display: flex;
   flex: 1 1 auto;
   align-items: flex-start;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 0.75rem;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.hud-near-me-btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-left: auto;
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.5);
+  color: var(--text);
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(3px) saturate(10%);
+  -webkit-backdrop-filter: blur(3px) saturate(10%);
+}
+
+.hud-near-me-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.hud-near-me-btn:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.hud-near-me-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .sidebar-host {
@@ -959,7 +996,12 @@ button {
   width: 100%;
   height: 0;
   overflow: hidden;
+  pointer-events: none;
   transition: height 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.player-details-open {
+  pointer-events: auto;
 }
 
 .player-details-anchor {
@@ -1011,20 +1053,32 @@ button {
   background: rgba(255, 255, 255, 0.2);
 }
 
-.player-tap-target {
+.player-expand-btn {
   display: flex;
-  min-width: 0;
-  flex: 1;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  flex-shrink: 0;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
   border: 0;
   padding: 0;
+  border-radius: 999px;
   background: transparent;
+  color: rgba(255, 255, 255, 0.52);
   cursor: pointer;
-  text-align: left;
+  touch-action: manipulation;
 }
 
-.player-tap-target:disabled {
+.player-expand-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.player-expand-btn:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.player-expand-btn:disabled {
   cursor: default;
 }
 
@@ -1218,7 +1272,6 @@ button {
 }
 
 .details-player-hero {
-  position: relative;
   width: 68px;
   margin: 0 auto 14px;
 }
@@ -1232,10 +1285,17 @@ button {
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
+.details-player-meta {
+  margin-bottom: 0;
+}
+
+.details-player-live-wrap {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 14px 6px;
+}
+
 .details-player-live {
-  position: absolute;
-  top: -6px;
-  right: -10px;
   padding: 3px 8px;
   font-size: 10px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
@@ -1611,6 +1671,58 @@ button {
   padding: 8px 8px 8px 8px;
   position: relative;
   z-index: 2;
+  isolation: isolate;
+}
+
+.player-hud .control-icon.control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  min-height: unset;
+  padding: 0;
+  color: var(--text);
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.player-hud .control-icon.control:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.player-hud .control-icon.control:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.player-hud .control-icon.control-icon-favorite:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.16);
+}
+
+.player-hud .control-icon.control-icon-favorite:active:not(:disabled) {
+  background: rgba(255, 107, 107, 0.24);
+}
+
+.player-hud .player-expand-btn {
+  border-radius: 50%;
+  transition: background 0.15s ease;
+}
+
+.player-hud .player-expand-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.player-hud .player-expand-btn:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.player-hud .play:active:not(:disabled) {
+  background: #e8e8e8;
+}
+
+.player-hud .player-copy {
+  flex: 1;
+  min-width: 0;
 }
 
 .player-copy {
@@ -1696,42 +1808,67 @@ select {
 }
 
 @media (max-width: 767px) {
-  .apple-panel {
-    --panel-title-size: 18px;
-    --panel-headline-size: 16px;
-    --panel-body-size: 15px;
-    --panel-secondary-size: 12px;
-    --panel-caption-size: 11px;
+  .sidebar-sheet {
+    --panel-title-size: 11px;
+    --panel-headline-size: 11px;
+    --panel-body-size: 11px;
+    --panel-secondary-size: 11px;
+    --panel-caption-size: 9px;
+  }
+
+  .sidebar-host {
+    max-height: calc(
+      100dvh - 6.5rem - env(safe-area-inset-top, 0px) -
+        env(safe-area-inset-bottom, 0px)
+    );
   }
 
   .sidebar-fab {
-    width: 38px;
-    height: 38px;
-    border-radius: 12px;
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+  }
+
+  .hud-near-me-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+  }
+
+  .hud-near-me-icon {
+    width: 15px;
+    height: 15px;
   }
 
   .sidebar-fab svg {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
   }
 
   .sidebar-sheet {
-    width: min(19rem, calc(100vw - 1.2rem));
-    border-radius: 16px;
+    width: min(16.25rem, calc(100vw - 0.9rem));
+    max-height: min(
+      calc(
+        100dvh - 8.5rem - env(safe-area-inset-top, 0px) -
+          env(safe-area-inset-bottom, 0px)
+      ),
+      360px
+    );
+    border-radius: 14px;
   }
 
   .sidebar-header {
-    gap: 8px;
-    padding: 10px 10px 0;
+    gap: 6px;
+    padding: 8px 9px 0;
   }
 
   .sidebar-controls {
-    gap: 6px;
-    padding: 8px 10px 6px;
+    gap: 5px;
+    padding: 6px 9px 5px;
   }
 
   .sidebar-filters {
-    gap: 6px;
+    gap: 5px;
   }
 
   .sidebar-filters-triple {
@@ -1739,60 +1876,208 @@ select {
   }
 
   .sidebar-sheet .apple-field {
-    height: 34px;
+    height: 32px;
+    font-size: 11px;
   }
 
   .sidebar-sheet .apple-field-search {
-    height: 36px;
-    padding-left: 34px;
+    height: 34px;
+    padding-left: 30px;
+    font-size: 11px;
   }
 
   .sidebar-sheet .field-wrap svg {
-    left: 10px;
+    left: 9px;
+    width: 11px;
+    height: 11px;
+  }
+
+  .sidebar-sheet .apple-segment {
+    border-radius: 7px;
+    padding: 1.5px;
+  }
+
+  .sidebar-sheet .apple-segment-btn {
+    min-height: 24px;
+    padding-inline: 2px;
+    font-size: 10px;
+    letter-spacing: -0.024em;
+  }
+
+  .sidebar-sheet .apple-control {
+    min-height: 30px;
+    font-size: 11px;
+  }
+
+  .sidebar-sheet .apple-row {
+    min-height: 34px;
+    padding: 5px 10px;
+    gap: 8px;
+  }
+
+  .sidebar-row-art {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+
+  .sidebar-sheet .apple-mobile-selected {
+    gap: 7px;
+    padding: 5px 7px;
+    border-radius: 9px;
+  }
+
+  .sidebar-selected-art {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+  }
+
+  .sidebar-sheet .apple-icon-btn {
+    width: 26px;
+    height: 26px;
+  }
+
+  .sidebar-sheet .apple-icon-btn svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .sidebar-results-hint {
+    font-size: 9px;
+    line-height: 1.2;
+  }
+
+  .sidebar-chevron {
     width: 14px;
     height: 14px;
   }
 
-  .sidebar-sheet .apple-segment {
-    border-radius: 8px;
-  }
-
-  .sidebar-sheet .apple-segment-btn {
-    min-height: 28px;
-    padding-inline: 4px;
-  }
-
-  .sidebar-sheet .apple-control {
-    min-height: 32px;
-  }
-
-  .sidebar-sheet .apple-row {
-    min-height: 40px;
-    padding: 6px 12px;
-  }
-
-  .sidebar-sheet .apple-mobile-selected {
-    padding: 6px 8px;
-    border-radius: 10px;
-  }
-
-  .sidebar-sheet .apple-icon-btn {
-    width: 28px;
-    height: 28px;
-  }
-
-  .sidebar-sheet .apple-icon-btn svg {
-    width: 16px;
-    height: 16px;
-  }
-
   .sidebar-empty {
-    padding-block: 1.5rem;
-    font-size: 13px;
+    padding-block: 1.25rem;
+    font-size: 11px;
   }
 
   .sidebar-footnote {
+    font-size: 9px;
+  }
+
+  .player-stack {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .hud-bottom {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .player-expand-btn {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+  }
+
+  .player-hud .control-icon {
+    touch-action: manipulation;
+    position: relative;
+    z-index: 3;
+  }
+
+  .player-details-shell {
+    --player-info-radius: 26px;
+  }
+
+  .player-details-body {
+    max-height: min(34dvh, 280px);
+  }
+
+  .player-details-anchor {
+    padding-bottom: 6px;
+  }
+
+  .details-player-card {
+    padding: 12px 12px 6px;
+  }
+
+  .details-player-hero {
+    width: 54px;
+    margin-bottom: 10px;
+  }
+
+  .details-player-live-wrap {
+    padding: 0 11px 5px;
+  }
+
+  .details-player-art {
+    width: 54px;
+    height: 54px;
+    border-radius: 12px;
+  }
+
+  .details-player-live {
+    padding: 3px 8px;
+    font-size: 9px;
+  }
+
+  .details-player-copy {
+    margin-bottom: 10px;
+  }
+
+  .details-player-track {
+    font-size: 15px;
+  }
+
+  .details-player-artist {
+    margin-top: 2px;
+    font-size: 12px;
+  }
+
+  .details-player-station {
+    margin-top: 6px;
+    font-size: 12px;
+  }
+
+  .details-player-station-primary {
+    font-size: 17px;
+  }
+
+  .details-player-place {
+    margin-top: 3px;
     font-size: 11px;
+  }
+
+  .details-player-inset + .details-player-inset {
+    margin-top: 6px;
+  }
+
+  .details-surface-glass .apple-inset-group {
+    border-radius: 8px;
+  }
+
+  .details-surface-glass .apple-info-row,
+  .details-surface-glass .apple-link-row {
+    min-height: 34px;
+    padding-inline: 11px;
+    gap: 10px;
+  }
+
+  .details-surface-glass .apple-info-label,
+  .details-surface-glass .apple-info-value,
+  .details-surface-glass .apple-link-detail {
+    font-size: 13px;
+  }
+
+  .player-details-actions {
+    gap: 4px;
+    padding: 4px 12px 10px;
+  }
+
+  .player-details-actions .control-icon {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    border-radius: 10px;
   }
 
   .player-station {
@@ -1824,9 +2109,9 @@ select {
   }
 
   .play {
-    width: 38px;
-    height: 38px;
-    min-width: 38px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
   }
 
   .control-icon {
@@ -1847,6 +2132,50 @@ select {
 
   .liquid-glass-pill {
     border-radius: 22px;
+  }
+}
+
+@media (max-width: 390px) {
+  .sidebar-sheet {
+    width: min(15rem, calc(100vw - 0.75rem));
+    max-height: min(
+      calc(
+        100dvh - 9rem - env(safe-area-inset-top, 0px) -
+          env(safe-area-inset-bottom, 0px)
+      ),
+      320px
+    );
+  }
+
+  .player-details-body {
+    max-height: min(30dvh, 250px);
+  }
+
+  .details-player-card {
+    padding: 10px 10px 5px;
+  }
+
+  .details-player-hero {
+    width: 48px;
+    margin-bottom: 8px;
+  }
+
+  .details-player-live-wrap {
+    padding: 0 10px 4px;
+  }
+
+  .details-player-art {
+    width: 48px;
+    height: 48px;
+    border-radius: 11px;
+  }
+
+  .details-player-track {
+    font-size: 14px;
+  }
+
+  .details-player-station-primary {
+    font-size: 16px;
   }
 }
 
@@ -1918,11 +2247,6 @@ select {
   .sidebar-controls {
     gap: 8px;
     padding: 12px 16px 8px;
-  }
-
-  .player-shuffle,
-  .player-near-me {
-    display: inline-flex;
   }
 
   .player-volume {

@@ -571,11 +571,17 @@ export function useAudioPlayer(
           () => wantPlayingRef.current,
         );
       }
+
+      if (autoplay) {
+        wantPlayingRef.current = true;
+        setWantsPlayback(true);
+      }
+
       if (isSwitch && wantPlayingRef.current) {
         void playTuningJingle();
       }
 
-      const shouldPlay = autoplay && wantPlayingRef.current;
+      const shouldPlay = autoplay;
 
       stationRef.current = nextStation;
       startedPlayingRef.current = false;
@@ -592,8 +598,6 @@ export function useAudioPlayer(
       playbackGenerationRef.current += 1;
       const generation = playbackGenerationRef.current;
 
-      wantPlayingRef.current = true;
-      setWantsPlayback(true);
       setStatus("loading");
       audio.muted = mutedRef.current;
       attachSource(nextStation, true);

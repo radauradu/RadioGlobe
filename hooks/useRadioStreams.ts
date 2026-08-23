@@ -10,6 +10,8 @@ import {
 const TARGET_STATIONS = 50_000;
 const PAGE_SIZE = 5_000;
 const INDEX_CACHE_TTL = 24 * 60 * 60 * 1_000;
+const REVEAL_BATCH_SIZE = 320;
+const REVEAL_INTERVAL_MS = 16;
 
 interface IndexResponse {
   stations: StationPoint[];
@@ -24,6 +26,45 @@ interface SearchResponse {
 interface FacetResponse {
   countries: string[];
   genres: string[];
+}
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) {
+    return Promise.reject(new DOMException("Aborted", "AbortError"));
+  }
+
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+
+    const onAbort = () => {
+      window.clearTimeout(timer);
+      signal.removeEventListener("abort", onAbort);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+
+    signal.addEventListener("abort", onAbort);
+  });
+}
+
+async function revealStations(
+  stations: StationPoint[],
+  startIndex: number,
+  signal: AbortSignal,
+  publish: (visible: StationPoint[]) => void,
+): Promise<number> {
+  let revealed = startIndex;
+  const total = stations.length;
+
+  while (revealed < total && !signal.aborted) {
+    revealed = Math.min(revealed + REVEAL_BATCH_SIZE, total);
+    publish(stations.slice(0, revealed));
+    if (revealed < total) await sleep(REVEAL_INTERVAL_MS, signal);
+  }
+
+  return revealed;
 }
 
 export function useRadioStreams() {
@@ -49,14 +90,18 @@ export function useRadioStreams() {
           Date.now() - cached.cachedAt < INDEX_CACHE_TTL &&
           (cached.complete || cached.stations.length >= TARGET_STATIONS)
         ) {
-          setStationPoints(cached.stations);
-          setIsLoading(false);
+          const stations = cached.stations.slice(0, TARGET_STATIONS);
+          await revealStations(stations, 0, controller.signal, (visible) => {
+            setStationPoints(visible);
+            setIsLoading(false);
+          });
           return;
         }
 
         const deduplicated = new Map<string, StationPoint>();
         let offset = 0;
         let hasMore = true;
+        let revealedCount = 0;
 
         while (
           hasMore &&
@@ -75,8 +120,17 @@ export function useRadioStreams() {
           const previousOffset = offset;
           offset = page.nextOffset;
           hasMore = page.hasMore && offset > previousOffset;
-          setStationPoints([...deduplicated.values()]);
-          setIsLoading(false);
+
+          const stations = [...deduplicated.values()].slice(0, TARGET_STATIONS);
+          revealedCount = await revealStations(
+            stations,
+            revealedCount,
+            controller.signal,
+            (visible) => {
+              setStationPoints(visible);
+              setIsLoading(false);
+            },
+          );
         }
 
         const stations = [...deduplicated.values()].slice(0, TARGET_STATIONS);

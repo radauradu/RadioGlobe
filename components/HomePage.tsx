@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { LoaderCircle } from "lucide-react";
+import { LocateFixed, LoaderCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AudioPlayerHUD from "@/components/AudioPlayerHUD";
 import CrosshairOverlay from "@/components/CrosshairOverlay";
@@ -178,6 +178,24 @@ export default function HomePage() {
 
   const trackRecent = recent.track;
 
+  const focusOnCoordinates = useCallback((coordinates: Coordinates) => {
+    setIsScanning(true);
+    setFocusRequest({ ...coordinates, nonce: Date.now() });
+  }, []);
+
+  const focusOnStation = useCallback(
+    (station: { lat: number; lng: number }) => {
+      if (
+        Number.isFinite(station.lat) &&
+        Number.isFinite(station.lng) &&
+        !(Math.abs(station.lat) < 0.05 && Math.abs(station.lng) < 0.05)
+      ) {
+        focusOnCoordinates({ lat: station.lat, lng: station.lng });
+      }
+    },
+    [focusOnCoordinates],
+  );
+
   const selectStation = useCallback(
     (station: RadioStation, autoplay = true) => {
       stationDetailsRef.current.set(station.id, station);
@@ -191,6 +209,14 @@ export default function HomePage() {
       void player.tune(station, autoplay);
     },
     [player, trackRecent],
+  );
+
+  const handleSidebarSelect = useCallback(
+    (station: RadioStation) => {
+      selectStation(station, true);
+      focusOnStation(station);
+    },
+    [focusOnStation, selectStation],
   );
 
   const selectPoint = useCallback(
@@ -264,8 +290,9 @@ export default function HomePage() {
     if (candidates.length === 0) return;
     const randomStation =
       candidates[Math.floor(Math.random() * candidates.length)];
+    focusOnStation(randomStation);
     void selectPoint(randomStation, true);
-  }, [selectPoint, selectableStations, selectedStation?.id]);
+  }, [focusOnStation, selectPoint, selectableStations, selectedStation?.id]);
 
   const playPreviousStation = useCallback(() => {
     if (!selectedStation || recent.ids.length < 2) return;
@@ -445,7 +472,7 @@ export default function HomePage() {
               stations={sidebarStations}
               totalOnGlobe={directory.stationPoints.length}
               selectedStation={selectedStation}
-              onSelectStation={(station) => selectStation(station, true)}
+              onSelectStation={handleSidebarSelect}
               query={directory.query}
               onQueryChange={directory.setQuery}
               country={directory.country}
@@ -468,6 +495,15 @@ export default function HomePage() {
               }}
             />
           </div>
+
+          <button
+            type="button"
+            className="pointer-events-auto hud-near-me-btn"
+            onClick={handleNearMe}
+            aria-label="Tune nearest station to my location"
+          >
+            <LocateFixed className="hud-near-me-icon" strokeWidth={1.75} />
+          </button>
         </div>
 
         <div className="hud-bottom">
@@ -482,7 +518,6 @@ export default function HomePage() {
               onRandomize={randomizeStation}
               canRandomize={selectableStations.length > 0}
               statusOverride={statusOverride}
-              onNearMe={handleNearMe}
               isFavorite={
                 selectedStation
                   ? favorites.isFavorite(selectedStation.id)

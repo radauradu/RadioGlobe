@@ -53,6 +53,8 @@ const DRAGGING_CURSOR = "grabbing";
 const STATION_CURSOR = "pointer";
 const PIN_SCALE = 0.45;
 const CENTER_FLIGHT_DURATION = 0.9;
+const PINS_PER_FRAME = 160;
+const PINS_PER_FRAME_HEAVY = 240;
 
 const GLOBE_SATELLITE_TONE = {
   brightness: 0.98,
@@ -326,6 +328,9 @@ export default function GlobeViewport({
   const favoriteIdsRef = useRef(new Set(favoriteStationIds));
   const isPlayingRef = useRef(isPlaying);
   const renderedPointsRef = useRef(new Map<string, PointPrimitive>());
+  const pendingStationsRef = useRef<StationPoint[]>([]);
+  const pendingStationIdsRef = useRef(new Set<string>());
+  const pinRevealFrameRef = useRef<number | null>(null);
   const programmaticCenterRef = useRef(false);
   const navigationKindRef = useRef<"rotate" | "zoom" | null>(null);
   const suppressNextMoveEndRef = useRef(false);
@@ -347,6 +352,72 @@ export default function GlobeViewport({
   useEffect(() => {
     selectedStationRef.current = selectedStation;
   }, [selectedStation]);
+
+  function stopPinReveal() {
+    if (pinRevealFrameRef.current !== null) {
+      cancelAnimationFrame(pinRevealFrameRef.current);
+      pinRevealFrameRef.current = null;
+    }
+  }
+
+  function addRenderedStation(
+    collection: PointPrimitiveCollection,
+    station: StationPoint,
+  ) {
+    const point = collection.add({
+      position: Cartesian3.fromDegrees(station.lng, station.lat, 2_000),
+      pixelSize: pinSizeForStation(station),
+      ...pinAppearance(STATION_COLOR),
+      id: station,
+    });
+    renderedPointsRef.current.set(station.id, point);
+    applyStationPin(
+      point,
+      station.id,
+      station,
+      favoriteIdsRef.current,
+      selectedStationRef.current?.id ?? null,
+      isPlayingRef.current,
+    );
+  }
+
+  function runPinRevealFrame() {
+    pinRevealFrameRef.current = null;
+    const collection = pointCollectionRef.current;
+    const viewer = viewerRef.current;
+    if (!collection || !viewer || viewer.isDestroyed()) {
+      pendingStationsRef.current = [];
+      pendingStationIdsRef.current.clear();
+      return;
+    }
+
+    const pending = pendingStationsRef.current;
+    if (pending.length === 0) return;
+
+    const batchSize = Math.min(
+      pending.length > 4_000 ? PINS_PER_FRAME_HEAVY : PINS_PER_FRAME,
+      pending.length,
+    );
+
+    for (let index = 0; index < batchSize; index += 1) {
+      const station = pending.shift();
+      if (!station) break;
+      pendingStationIdsRef.current.delete(station.id);
+      if (renderedPointsRef.current.has(station.id)) continue;
+      addRenderedStation(collection, station);
+    }
+
+    viewer.scene.requestRender();
+
+    if (pending.length > 0) {
+      pinRevealFrameRef.current = requestAnimationFrame(runPinRevealFrame);
+    }
+  }
+
+  function schedulePinReveal() {
+    if (pinRevealFrameRef.current !== null) return;
+    pinRevealFrameRef.current = requestAnimationFrame(runPinRevealFrame);
+  }
 
   useEffect(() => {
     favoriteIdsRef.current = new Set(favoriteStationIds);
@@ -917,6 +988,9 @@ export default function GlobeViewport({
       removeMoveEnd?.();
       removeNavigationListeners?.();
       clickHandler?.destroy();
+      stopPinReveal();
+      pendingStationsRef.current = [];
+      pendingStationIdsRef.current.clear();
       renderedPoints.clear();
       pointCollectionRef.current = null;
       viewerRef.current = null;
@@ -957,25 +1031,23 @@ export default function GlobeViewport({
       }
     }
 
+    const nextStationIds = new Set(nextStations.keys());
+    pendingStationsRef.current = pendingStationsRef.current.filter((station) => {
+      if (!nextStationIds.has(station.id)) {
+        pendingStationIdsRef.current.delete(station.id);
+        return false;
+      }
+      return true;
+    });
+
     for (const station of stations) {
       if (renderedPointsRef.current.has(station.id)) continue;
-      const point = collection.add({
-        position: Cartesian3.fromDegrees(station.lng, station.lat, 2_000),
-        pixelSize: pinSizeForStation(station),
-        ...pinAppearance(STATION_COLOR),
-        id: station,
-      });
-      renderedPointsRef.current.set(station.id, point);
-      applyStationPin(
-        point,
-        station.id,
-        station,
-        favoriteIdsRef.current,
-        selectedStationRef.current?.id ?? null,
-        isPlayingRef.current,
-      );
+      if (pendingStationIdsRef.current.has(station.id)) continue;
+      pendingStationIdsRef.current.add(station.id);
+      pendingStationsRef.current.push(station);
     }
-    viewer.scene.requestRender();
+
+    schedulePinReveal();
   }, [stations]);
 
   useEffect(() => {

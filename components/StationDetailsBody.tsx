@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Heart, Share2 } from "lucide-react";
+import { ChevronRight, Heart, Share } from "lucide-react";
 import StationArt from "@/components/StationArt";
 import { useClock } from "@/hooks/useClock";
 import type { RadioStation } from "@/lib/radioApi";
@@ -61,9 +61,6 @@ export default function StationDetailsBody({
             name={station.name}
             className="details-player-art"
           />
-          {isPlaying ? (
-            <span className="apple-live-pill details-player-live">Live</span>
-          ) : null}
         </div>
 
         <div className="details-player-copy">
@@ -85,7 +82,14 @@ export default function StationDetailsBody({
           <p className="details-player-place truncate">{location}</p>
         </div>
 
-        <div className="apple-inset-group details-inset-group details-player-inset">
+        <div className="details-player-meta">
+          {isPlaying ? (
+            <div className="details-player-live-wrap">
+              <span className="apple-live-pill details-player-live">Live</span>
+            </div>
+          ) : null}
+
+          <div className="apple-inset-group details-inset-group details-player-inset">
           <div className="apple-info-row">
             <span className="apple-info-label">Local Time</span>
             <span className="apple-info-value apple-tabular">{localTime}</span>
@@ -96,6 +100,7 @@ export default function StationDetailsBody({
               <span className="apple-info-value">{audio}</span>
             </div>
           ) : null}
+        </div>
         </div>
 
         {website ? (
@@ -142,7 +147,7 @@ export default function StationDetailsBody({
                   onClick={() => void shareStationLink(station.id, station.name)}
                   aria-label="Share station"
                 >
-                  <Share2
+                  <Share
                     className="h-[18px] w-[18px] text-[#86868b] details-glass-icon"
                     strokeWidth={1.75}
                   />

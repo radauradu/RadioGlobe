@@ -5,7 +5,7 @@ import {
   Heart,
   Menu,
   Search,
-  Share2,
+  Share,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -210,7 +210,7 @@ export default function StationSidebar({
       </div>
 
       {selectedStation ? (
-        <div className="apple-mobile-selected">
+        <div className="apple-mobile-selected sidebar-desktop-only">
           <StationArt
             favicon={selectedStation.favicon}
             name={selectedStation.name}
@@ -231,7 +231,7 @@ export default function StationSidebar({
               onClick={() => void handleShare()}
               aria-label="Share station"
             >
-              <Share2
+              <Share
                 className="h-[16px] w-[16px] text-[#86868b]"
                 strokeWidth={1.75}
               />

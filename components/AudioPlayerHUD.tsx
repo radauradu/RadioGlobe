@@ -3,10 +3,9 @@
 import {
   ChevronUp,
   Heart,
-  LocateFixed,
   Pause,
   Play,
-  Share2,
+  Share,
   Shuffle,
   Volume2,
   VolumeX,
@@ -14,7 +13,6 @@ import {
 import { useEffect, useLayoutEffect, useRef, useState, type TransitionEvent } from "react";
 import LiquidGlass from "@/components/LiquidGlass";
 import MarqueeText from "@/components/MarqueeText";
-import StationArt from "@/components/StationArt";
 import StationDetailsBody from "@/components/StationDetailsBody";
 import type { useAudioPlayer } from "@/hooks/useAudioPlayer";
 import { shareStationLink } from "@/lib/shareStation";
@@ -27,7 +25,6 @@ interface AudioPlayerHUDProps {
   player: ReturnType<typeof useAudioPlayer>;
   onRandomize: () => void;
   canRandomize: boolean;
-  onNearMe?: () => void;
   statusOverride?: string | null;
   isFavorite?: boolean;
   onToggleFavorite?: (stationId: string) => void;
@@ -37,7 +34,6 @@ export default function AudioPlayerHUD({
   player,
   onRandomize,
   canRandomize,
-  onNearMe,
   statusOverride = null,
   isFavorite = false,
   onToggleFavorite,
@@ -48,6 +44,7 @@ export default function AudioPlayerHUD({
   const [panelHeight, setPanelHeight] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
   const closingRef = useRef(false);
+  const [compactPlayer, setCompactPlayer] = useState(false);
   const {
     station,
     status,
@@ -80,6 +77,14 @@ export default function AudioPlayerHUD({
     setPanelMounted(false);
     closingRef.current = false;
   }, [station?.id]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    const update = () => setCompactPlayer(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     if (!expanded) return;
@@ -150,7 +155,7 @@ export default function AudioPlayerHUD({
     <div className="player-stack">
       {panelMounted && station ? (
         <div
-          className="player-details"
+          className={`player-details ${expanded ? "player-details-open" : ""}`}
           style={{ height: expanded ? panelHeight : 0 }}
           onTransitionEnd={handlePanelTransitionEnd}
         >
@@ -172,28 +177,6 @@ export default function AudioPlayerHUD({
                   streamTitle={song ?? null}
                   streamSubtitle={artist ?? null}
                 />
-                <div className="player-details-actions">
-                  <button
-                    type="button"
-                    className="control-icon control player-shuffle"
-                    onClick={onRandomize}
-                    disabled={!canRandomize}
-                    aria-label="Play a random station"
-                  >
-                    <Shuffle className="control-glyph" strokeWidth={1.75} />
-                  </button>
-
-                  {onNearMe ? (
-                    <button
-                      type="button"
-                      className="control-icon control player-near-me"
-                      onClick={onNearMe}
-                      aria-label="Tune nearest station to my location"
-                    >
-                      <LocateFixed className="control-glyph" strokeWidth={1.75} />
-                    </button>
-                  ) : null}
-                </div>
               </div>
             </LiquidGlass>
           </div>
@@ -225,51 +208,53 @@ export default function AudioPlayerHUD({
             )}
           </button>
 
-          <button
-            type="button"
-            className="player-tap-target"
-            onClick={toggleExpanded}
-            disabled={!station}
-            aria-expanded={expanded}
-            aria-label={
-              expanded ? "Hide station details" : "Show station details"
-            }
-          >
-            {station ? (
-              <StationArt
-                favicon={station.favicon}
-                name={station.name}
-                className="player-art"
-              />
-            ) : null}
+          <div className="player-copy">
+            <MarqueeText
+              text={title}
+              className="player-title"
+              scrollAfter={compactPlayer ? 22 : 28}
+            />
+            <MarqueeText
+              text={subtitle ?? "\u00a0"}
+              className="player-artist"
+              scrollAfter={compactPlayer ? 26 : 32}
+            />
+            <MarqueeText
+              text={station?.name ?? "No station"}
+              className="player-station"
+              scrollAfter={compactPlayer ? 28 : 34}
+            />
+          </div>
 
-            <div className="player-copy">
-              <MarqueeText
-                text={title}
-                className="player-title"
-                scrollAfter={28}
-              />
-              <MarqueeText
-                text={subtitle ?? "\u00a0"}
-                className="player-artist"
-                scrollAfter={32}
-              />
-              <MarqueeText
-                text={station?.name ?? "No station"}
-                className="player-station"
-                scrollAfter={34}
-              />
-            </div>
-
-            {station ? (
+          {station ? (
+            <button
+              type="button"
+              className="player-expand-btn"
+              onClick={toggleExpanded}
+              disabled={!station}
+              aria-expanded={expanded}
+              aria-label={
+                expanded ? "Hide station details" : "Show station details"
+              }
+            >
               <ChevronUp
                 className={`player-expand-chevron ${expanded ? "player-expand-chevron-open" : ""}`}
                 strokeWidth={1.75}
               />
-            ) : null}
-          </button>
+            </button>
+          ) : null}
 
           <div className="player-controls">
+            <button
+              type="button"
+              className="control-icon control player-shuffle"
+              onClick={onRandomize}
+              disabled={!canRandomize}
+              aria-label="Play a random station"
+            >
+              <Shuffle className="control-glyph" strokeWidth={1.75} />
+            </button>
+
             {station ? (
               <button
                 type="button"
@@ -279,7 +264,7 @@ export default function AudioPlayerHUD({
                   shareState === "copied" ? "Link copied" : "Share station"
                 }
               >
-                <Share2 className="control-glyph" strokeWidth={1.75} />
+                <Share className="control-glyph" strokeWidth={1.75} />
               </button>
             ) : null}
 
