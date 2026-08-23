@@ -478,7 +478,7 @@ export async function fetchStationFacets() {
       .filter(Boolean);
 
   return {
-    countries: normalizeCountries(countries),
+    countries: [...new Set(normalizeCountries(countries))],
     genres: normalizeGenreFacets(
       genres.filter(
         (facet): facet is Required<RadioBrowserFacet> =>

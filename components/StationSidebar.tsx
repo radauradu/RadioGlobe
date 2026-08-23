@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import ApplePanel from "@/components/ApplePanel";
+import FilterPicker from "@/components/FilterPicker";
 import StationArt from "@/components/StationArt";
 import { formatStationPlace } from "@/lib/place";
 import type { RadioStation } from "@/lib/radioApi";
@@ -181,32 +182,20 @@ export default function StationSidebar({
       </div>
 
       <div className="sidebar-filters">
-        <select
+        <FilterPicker
+          label="Country"
+          allLabel="All countries"
           value={country}
-          onChange={(event) => onCountryChange(event.target.value)}
-          className="apple-field"
-          aria-label="Country"
-        >
-          <option value="all">Country</option>
-          {countries.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-        <select
+          options={countries}
+          onChange={onCountryChange}
+        />
+        <FilterPicker
+          label="Genre"
+          allLabel="All genres"
           value={genre}
-          onChange={(event) => onGenreChange(event.target.value)}
-          className="apple-field"
-          aria-label="Genre"
-        >
-          <option value="all">Genre</option>
-          {genres.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
+          options={genres}
+          onChange={onGenreChange}
+        />
       </div>
 
       {selectedStation ? (
