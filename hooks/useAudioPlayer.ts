@@ -45,10 +45,28 @@ function createPlayerAudioElement() {
   audio.volume = 0.72;
   audio.setAttribute("playsinline", "");
   audio.setAttribute("webkit-playsinline", "true");
-  audio.crossOrigin = "anonymous";
+  if (!useDirectAudioOutput()) {
+    audio.crossOrigin = "anonymous";
+  }
   audio.style.cssText =
     "position:fixed;width:0;height:0;opacity:0;pointer-events:none";
   document.body.appendChild(audio);
+  return audio;
+}
+
+function replaceSharedAudioElement(
+  audioRef: MutableRefObject<HTMLAudioElement | null>,
+) {
+  const registry = audioElementRegistry();
+  const previous = audioRef.current;
+  if (previous) {
+    hardStopAudioElement(previous);
+    previous.remove();
+    registry.delete(previous);
+  }
+  const audio = createPlayerAudioElement();
+  registry.add(audio);
+  audioRef.current = audio;
   return audio;
 }
 
@@ -140,6 +158,7 @@ export function useAudioPlayer(
   const autoUnmuteCleanupRef = useRef<(() => void) | null>(null);
   const suppressPlatformPauseRef = useRef(false);
   const streamTitleRef = useRef<string | null>(null);
+  const [audioEpoch, setAudioEpoch] = useState(0);
 
   bindSharedAudioElement(audioRef);
 
@@ -309,17 +328,22 @@ export function useAudioPlayer(
 
   const pausePlayback = useCallback(() => {
     suppressPlatformPauseRef.current = true;
-    const audio = bindSharedAudioElement(audioRef);
-    if (audio && !audio.paused) {
+    playbackGenerationRef.current += 1;
+    wantPlayingRef.current = false;
+    setWantsPlayback(false);
+    startedPlayingRef.current = false;
+    clearAutoUnmute();
+    destroyHls();
+    const audio = audioRef.current;
+    if (audio) {
       audio.pause();
     }
-    cancelPlaybackIntent();
     setStatus("paused");
     syncMediaSessionPlaybackState("paused");
     window.setTimeout(() => {
       suppressPlatformPauseRef.current = false;
     }, 0);
-  }, [cancelPlaybackIntent]);
+  }, [clearAutoUnmute, destroyHls]);
 
   // Autoplay can start the media element while leaving Web Audio suspended.
   // Resume the analyser on the next genuine user gesture so the spectrum
@@ -342,7 +366,7 @@ export function useAudioPlayer(
   const sourceFor = useCallback(
     (nextStation: RadioStation, relay: boolean) =>
       relay
-        ? `/api/stream/${encodeURIComponent(nextStation.id)}`
+        ? `/api/stream/${encodeURIComponent(nextStation.id)}?session=${Date.now()}`
         : nextStation.streamUrl,
     [],
   );
@@ -350,11 +374,19 @@ export function useAudioPlayer(
   const attachSource: (nextStation: RadioStation, relay: boolean) => void =
     useCallback(
     (nextStation: RadioStation, relay: boolean) => {
-      const audio = bindSharedAudioElement(audioRef);
-      if (!audio) return;
       if (!wantPlayingRef.current) return;
 
       haltAudioOutput();
+      const audio = useDirectAudioOutput()
+        ? replaceSharedAudioElement(audioRef)
+        : bindSharedAudioElement(audioRef);
+      if (!audio) return;
+      if (useDirectAudioOutput()) {
+        setAudioEpoch((epoch) => epoch + 1);
+      }
+
+      audio.title = nextStation.name;
+      audio.setAttribute("title", nextStation.name);
       const attachGen = attachGenerationRef.current;
       usingRelayRef.current = relay;
 
@@ -362,10 +394,11 @@ export function useAudioPlayer(
       const isHls =
         /\.m3u8(?:$|\?)/i.test(nextStation.streamUrl) ||
         nextStation.codec.includes("HLS");
+      const useHlsJs = isHls && Hls.isSupported() && !useDirectAudioOutput();
 
-      if (isHls && Hls.isSupported()) {
+      if (useHlsJs) {
         const hls = new Hls({
-          enableWorker: !useDirectAudioOutput(),
+          enableWorker: true,
           lowLatencyMode: false,
           maxBufferLength: 20,
           maxMaxBufferLength: 40,
@@ -551,7 +584,7 @@ export function useAudioPlayer(
       syncMediaSessionPlaybackState("playing");
       const currentStation = stationRef.current;
       if (currentStation) {
-        syncNowPlayingMetadata(currentStation, streamTitleRef.current);
+        syncNowPlayingMetadata(currentStation, streamTitleRef.current, audio);
       }
     };
     const onPause = () => {
@@ -606,7 +639,7 @@ export function useAudioPlayer(
       audio.removeEventListener("waiting", onWaiting);
       audio.removeEventListener("error", onError);
     };
-  }, [attachSource, haltAudioOutput, pausePlayback]);
+  }, [attachSource, haltAudioOutput, pausePlayback, audioEpoch]);
 
   const tune = useCallback(
     async (nextStation: RadioStation, autoplay = true) => {
@@ -646,7 +679,7 @@ export function useAudioPlayer(
       setStreamTitle(null);
       streamTitleRef.current = null;
       setError(null);
-      syncNowPlayingMetadata(nextStation, null);
+      syncNowPlayingMetadata(nextStation, null, audio);
 
       if (!shouldPlay) {
         cancelPlaybackIntent();
@@ -834,7 +867,7 @@ export function useAudioPlayer(
         setStreamTitle(data.streamTitle);
         streamTitleRef.current = data.streamTitle;
         if (stationRef.current) {
-          syncNowPlayingMetadata(stationRef.current, data.streamTitle);
+          syncNowPlayingMetadata(stationRef.current, data.streamTitle, audioRef.current);
         }
       } catch {
         // Metadata is optional; playback remains uninterrupted.

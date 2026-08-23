@@ -28,13 +28,24 @@ export function useMediaSession({
   const resumePlaybackRef = useRef(resumePlayback);
   const onRandomizeRef = useRef(onRandomize);
   const onPlayPreviousRef = useRef(onPlayPrevious);
+  const stationRef = useRef(station);
+  const streamTitleRef = useRef(streamTitle);
 
   useEffect(() => {
     pausePlaybackRef.current = pausePlayback;
     resumePlaybackRef.current = resumePlayback;
     onRandomizeRef.current = onRandomize;
     onPlayPreviousRef.current = onPlayPrevious;
-  }, [pausePlayback, resumePlayback, onRandomize, onPlayPrevious]);
+    stationRef.current = station;
+    streamTitleRef.current = streamTitle;
+  }, [
+    pausePlayback,
+    resumePlayback,
+    onRandomize,
+    onPlayPrevious,
+    station,
+    streamTitle,
+  ]);
 
   useEffect(() => {
     if (typeof navigator === "undefined" || !("mediaSession" in navigator)) {
@@ -87,9 +98,11 @@ export function useMediaSession({
     if (!useDirectAudioOutput() || !station || status !== "playing") return;
 
     const interval = window.setInterval(() => {
-      syncNowPlayingMetadata(station, streamTitle);
-    }, 2000);
+      const current = stationRef.current;
+      if (!current) return;
+      syncNowPlayingMetadata(current, streamTitleRef.current);
+    }, 1500);
 
     return () => window.clearInterval(interval);
-  }, [station, streamTitle, status]);
+  }, [station, status]);
 }
