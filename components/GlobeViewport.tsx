@@ -23,6 +23,7 @@ let PointPrimitiveCollection: CesiumNS["PointPrimitiveCollection"];
 let SceneTransforms: CesiumNS["SceneTransforms"];
 let ScreenSpaceEventHandler: CesiumNS["ScreenSpaceEventHandler"];
 let ScreenSpaceEventType: CesiumNS["ScreenSpaceEventType"];
+let EllipsoidTerrainProvider: CesiumNS["EllipsoidTerrainProvider"];
 let UrlTemplateImageryProvider: CesiumNS["UrlTemplateImageryProvider"];
 let Viewer: CesiumNS["Viewer"];
 let WebMapTileServiceImageryProvider: CesiumNS["WebMapTileServiceImageryProvider"];
@@ -46,6 +47,7 @@ function bindCesium(cesium: CesiumNS) {
   SceneTransforms = cesium.SceneTransforms;
   ScreenSpaceEventHandler = cesium.ScreenSpaceEventHandler;
   ScreenSpaceEventType = cesium.ScreenSpaceEventType;
+  EllipsoidTerrainProvider = cesium.EllipsoidTerrainProvider;
   UrlTemplateImageryProvider = cesium.UrlTemplateImageryProvider;
   Viewer = cesium.Viewer;
   WebMapTileServiceImageryProvider = cesium.WebMapTileServiceImageryProvider;
@@ -500,15 +502,6 @@ export default function GlobeViewport({
         enablePickFeatures: false,
         credit: "Esri, Maxar, Earthstar Geographics",
       });
-      const nightProvider = new WebMapTileServiceImageryProvider({
-        url: NIGHT_IMAGERY,
-        layer: "VIIRS_Black_Marble",
-        style: "default",
-        format: "image/png",
-        tileMatrixSetID: "GoogleMapsCompatible_Level8",
-        maximumLevel: 8,
-        credit: "NASA Global Imagery Browse Services",
-      });
       if (cancelled || !container) return;
 
       const baseLayer = new ImageryLayer(satelliteProvider, {
@@ -519,8 +512,12 @@ export default function GlobeViewport({
         saturation: GLOBE_SATELLITE_TONE.saturation,
         gamma: GLOBE_SATELLITE_TONE.gamma,
       });
+      const creditContainer = document.createElement("div");
+      creditContainer.style.display = "none";
       viewer = new Viewer(container, {
         baseLayer,
+        terrainProvider: new EllipsoidTerrainProvider(),
+        creditContainer,
         animation: false,
         baseLayerPicker: false,
         fullscreenButton: false,
@@ -543,15 +540,6 @@ export default function GlobeViewport({
       });
       viewerRef.current = viewer;
 
-      const nightLayer = new ImageryLayer(nightProvider, {
-        dayAlpha: 0,
-        nightAlpha: 0.86,
-        brightness: GLOBE_NIGHT_TONE.brightness,
-        contrast: GLOBE_NIGHT_TONE.contrast,
-        saturation: GLOBE_NIGHT_TONE.saturation,
-      });
-      viewer.imageryLayers.add(nightLayer);
-
       const { scene } = viewer;
       scene.backgroundColor = Color.TRANSPARENT;
       if (scene.skyBox) scene.skyBox.show = false;
@@ -561,6 +549,32 @@ export default function GlobeViewport({
       scene.globe.dynamicAtmosphereLightingFromSun = true;
       scene.globe.showGroundAtmosphere = false;
       scene.globe.depthTestAgainstTerrain = false;
+      scene.requestRender();
+      setViewerReady(true);
+
+      try {
+        const nightProvider = new WebMapTileServiceImageryProvider({
+          url: NIGHT_IMAGERY,
+          layer: "VIIRS_Black_Marble",
+          style: "default",
+          format: "image/png",
+          tileMatrixSetID: "GoogleMapsCompatible_Level8",
+          maximumLevel: 8,
+          credit: "NASA Global Imagery Browse Services",
+        });
+        viewer.imageryLayers.add(
+          new ImageryLayer(nightProvider, {
+            dayAlpha: 0,
+            nightAlpha: 0.86,
+            brightness: GLOBE_NIGHT_TONE.brightness,
+            contrast: GLOBE_NIGHT_TONE.contrast,
+            saturation: GLOBE_NIGHT_TONE.saturation,
+          }),
+        );
+      } catch (error) {
+        console.warn("Night imagery unavailable", error);
+      }
+
       if (scene.skyAtmosphere) {
         scene.skyAtmosphere.hueShift = 0.04;
         scene.skyAtmosphere.saturationShift = 0.22;
