@@ -3,43 +3,17 @@
 import { useEffect, useRef } from "react";
 import type { useAudioPlayer } from "@/hooks/useAudioPlayer";
 import type { RadioStation } from "@/lib/radioApi";
-import { formatStationPlace } from "@/lib/place";
-import { parseNowPlaying } from "@/lib/text";
+import {
+  syncMediaSessionPlaybackState,
+  syncNowPlayingMetadata,
+  useDirectAudioOutput,
+} from "@/lib/mediaSession";
 
 interface UseMediaSessionOptions {
   player: ReturnType<typeof useAudioPlayer>;
   station: RadioStation | null;
   onRandomize: () => void;
   onPlayPrevious: () => void;
-}
-
-function artworkForStation(station: RadioStation) {
-  if (!station.favicon?.trim()) return [];
-  try {
-    const src = new URL(station.favicon, window.location.href).href;
-    return [{ src, sizes: "512x512", type: "image/png" }];
-  } catch {
-    return [];
-  }
-}
-
-function mediaMetadataForStation(
-  station: RadioStation,
-  streamTitle: string | null,
-) {
-  const place = formatStationPlace(station);
-  const { artist, song } = parseNowPlaying(streamTitle);
-  const nowPlaying =
-    song && artist
-      ? `${artist} — ${song}`
-      : song ?? artist ?? null;
-
-  return new MediaMetadata({
-    title: station.name,
-    artist: nowPlaying ?? place.line,
-    album: "Radio Globe",
-    artwork: artworkForStation(station),
-  });
 }
 
 export function useMediaSession({
@@ -69,48 +43,53 @@ export function useMediaSession({
 
     const mediaSession = navigator.mediaSession;
 
-    mediaSession.setActionHandler("play", () => {
+    const handlePlay = () => {
       void resumePlaybackRef.current();
-    });
-    mediaSession.setActionHandler("pause", () => {
+    };
+    const handlePause = () => {
       pausePlaybackRef.current();
-    });
-    mediaSession.setActionHandler("nexttrack", () => {
-      onRandomizeRef.current();
-    });
-    mediaSession.setActionHandler("previoustrack", () => {
-      onPlayPreviousRef.current();
-    });
+    };
+
+    try {
+      mediaSession.setActionHandler("play", handlePlay);
+      mediaSession.setActionHandler("pause", handlePause);
+      mediaSession.setActionHandler("nexttrack", () => {
+        onRandomizeRef.current();
+      });
+      mediaSession.setActionHandler("previoustrack", () => {
+        onPlayPreviousRef.current();
+      });
+    } catch {
+      // Some Safari versions reject optional handlers.
+    }
 
     return () => {
-      mediaSession.setActionHandler("play", null);
-      mediaSession.setActionHandler("pause", null);
-      mediaSession.setActionHandler("nexttrack", null);
-      mediaSession.setActionHandler("previoustrack", null);
+      try {
+        mediaSession.setActionHandler("play", null);
+        mediaSession.setActionHandler("pause", null);
+        mediaSession.setActionHandler("nexttrack", null);
+        mediaSession.setActionHandler("previoustrack", null);
+      } catch {
+        // Ignore cleanup errors.
+      }
     };
   }, []);
 
   useEffect(() => {
-    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) {
-      return;
-    }
-
-    navigator.mediaSession.playbackState =
-      status === "playing" ? "playing" : "paused";
+    syncMediaSessionPlaybackState(status === "playing" ? "playing" : "paused");
   }, [status]);
 
   useEffect(() => {
-    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) {
-      return;
-    }
-
-    if (!station) {
-      navigator.mediaSession.metadata = null;
-      return;
-    }
-
-    // iOS only refreshes Now Playing when metadata is cleared first.
-    navigator.mediaSession.metadata = null;
-    navigator.mediaSession.metadata = mediaMetadataForStation(station, streamTitle);
+    syncNowPlayingMetadata(station, streamTitle);
   }, [station?.id, station?.name, station?.favicon, streamTitle]);
+
+  useEffect(() => {
+    if (!useDirectAudioOutput() || !station || status !== "playing") return;
+
+    const interval = window.setInterval(() => {
+      syncNowPlayingMetadata(station, streamTitle);
+    }, 2000);
+
+    return () => window.clearInterval(interval);
+  }, [station, streamTitle, status]);
 }

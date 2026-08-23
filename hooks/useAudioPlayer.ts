@@ -9,6 +9,12 @@ import {
   type MutableRefObject,
 } from "react";
 import type { RadioStation } from "@/lib/radioApi";
+import {
+  configurePlatformAudioSession,
+  syncMediaSessionPlaybackState,
+  syncNowPlayingMetadata,
+  useDirectAudioOutput,
+} from "@/lib/mediaSession";
 import { fadeAudioVolume, playTuningJingle, stopTuningSound } from "@/lib/tuningSound";
 
 export type PlayerStatus = "idle" | "loading" | "playing" | "paused" | "error";
@@ -32,11 +38,28 @@ function hardStopAudioElement(audio: HTMLAudioElement) {
   audio.load();
 }
 
+function createPlayerAudioElement() {
+  const audio = document.createElement("audio");
+  audio.id = "radioglobe-player";
+  audio.preload = "auto";
+  audio.volume = 0.72;
+  audio.setAttribute("playsinline", "");
+  audio.setAttribute("webkit-playsinline", "true");
+  audio.crossOrigin = "anonymous";
+  audio.style.cssText =
+    "position:fixed;width:0;height:0;opacity:0;pointer-events:none";
+  document.body.appendChild(audio);
+  return audio;
+}
+
 function getSharedAudioElement(registry: Set<HTMLAudioElement>) {
   const existing = registry.values().next().value;
   if (existing) return existing;
 
-  const audio = new Audio();
+  const audio =
+    typeof document !== "undefined"
+      ? createPlayerAudioElement()
+      : new Audio();
   audio.preload = "auto";
   audio.volume = 0.72;
   registry.add(audio);
@@ -116,8 +139,17 @@ export function useAudioPlayer(
   >(() => undefined);
   const autoUnmuteCleanupRef = useRef<(() => void) | null>(null);
   const suppressPlatformPauseRef = useRef(false);
+  const streamTitleRef = useRef<string | null>(null);
 
   bindSharedAudioElement(audioRef);
+
+  useEffect(() => {
+    configurePlatformAudioSession();
+  }, []);
+
+  useEffect(() => {
+    streamTitleRef.current = streamTitle;
+  }, [streamTitle]);
 
   useEffect(() => {
     unavailableRef.current = onStationUnavailable;
@@ -155,6 +187,8 @@ export function useAudioPlayer(
   }, []);
 
   const ensureAnalyser = useCallback(() => {
+    if (useDirectAudioOutput()) return;
+
     const audio = bindSharedAudioElement(audioRef);
     if (!audio || typeof AudioContext === "undefined") return;
 
@@ -185,6 +219,12 @@ export function useAudioPlayer(
   const restoreAudibleOutput = useCallback(async () => {
     const audio = bindSharedAudioElement(audioRef);
     if (!audio) return;
+
+    if (useDirectAudioOutput()) {
+      audio.muted = mutedRef.current;
+      audio.volume = volumeRef.current;
+      return;
+    }
 
     ensureAnalyser();
     audio.muted = mutedRef.current;
@@ -267,6 +307,20 @@ export function useAudioPlayer(
     haltAudioOutput();
   }, [clearAutoUnmute, haltAudioOutput]);
 
+  const pausePlayback = useCallback(() => {
+    suppressPlatformPauseRef.current = true;
+    const audio = bindSharedAudioElement(audioRef);
+    if (audio && !audio.paused) {
+      audio.pause();
+    }
+    cancelPlaybackIntent();
+    setStatus("paused");
+    syncMediaSessionPlaybackState("paused");
+    window.setTimeout(() => {
+      suppressPlatformPauseRef.current = false;
+    }, 0);
+  }, [cancelPlaybackIntent]);
+
   // Autoplay can start the media element while leaving Web Audio suspended.
   // Resume the analyser on the next genuine user gesture so the spectrum
   // follows the music instead of remaining a flat line.
@@ -311,7 +365,7 @@ export function useAudioPlayer(
 
       if (isHls && Hls.isSupported()) {
         const hls = new Hls({
-          enableWorker: true,
+          enableWorker: !useDirectAudioOutput(),
           lowLatencyMode: false,
           maxBufferLength: 20,
           maxMaxBufferLength: 40,
@@ -494,26 +548,23 @@ export function useAudioPlayer(
       startedPlayingRef.current = true;
       setStatus("playing");
       setError(null);
+      syncMediaSessionPlaybackState("playing");
+      const currentStation = stationRef.current;
+      if (currentStation) {
+        syncNowPlayingMetadata(currentStation, streamTitleRef.current);
+      }
     };
     const onPause = () => {
       if (suppressPlatformPauseRef.current) return;
 
       if (wantPlayingRef.current && stationRef.current && !audio.ended) {
-        playbackGenerationRef.current += 1;
-        wantPlayingRef.current = false;
-        setWantsPlayback(false);
-        startedPlayingRef.current = false;
-        clearAutoUnmute();
-        destroyHls();
-        setStatus("paused");
-        if ("mediaSession" in navigator) {
-          navigator.mediaSession.playbackState = "paused";
-        }
+        pausePlayback();
         return;
       }
 
       if (!wantPlayingRef.current && stationRef.current && !audio.ended) {
         setStatus("paused");
+        syncMediaSessionPlaybackState("paused");
       }
     };
     const onWaiting = () => {
@@ -555,15 +606,7 @@ export function useAudioPlayer(
       audio.removeEventListener("waiting", onWaiting);
       audio.removeEventListener("error", onError);
     };
-  }, [attachSource, clearAutoUnmute, destroyHls, haltAudioOutput]);
-
-  const pausePlayback = useCallback(() => {
-    cancelPlaybackIntent();
-    setStatus("paused");
-    if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
-      navigator.mediaSession.playbackState = "paused";
-    }
-  }, [cancelPlaybackIntent]);
+  }, [attachSource, haltAudioOutput, pausePlayback]);
 
   const tune = useCallback(
     async (nextStation: RadioStation, autoplay = true) => {
@@ -601,7 +644,9 @@ export function useAudioPlayer(
       startedPlayingRef.current = false;
       setStation(nextStation);
       setStreamTitle(null);
+      streamTitleRef.current = null;
       setError(null);
+      syncNowPlayingMetadata(nextStation, null);
 
       if (!shouldPlay) {
         cancelPlaybackIntent();
@@ -787,6 +832,10 @@ export function useAudioPlayer(
         };
         if (stationRef.current?.id !== stationId) return;
         setStreamTitle(data.streamTitle);
+        streamTitleRef.current = data.streamTitle;
+        if (stationRef.current) {
+          syncNowPlayingMetadata(stationRef.current, data.streamTitle);
+        }
       } catch {
         // Metadata is optional; playback remains uninterrupted.
       }
@@ -805,23 +854,38 @@ export function useAudioPlayer(
       return;
     }
 
-    let frame = 0;
-    let lastUpdate = 0;
-    const render = (time: number) => {
-      if (time - lastUpdate > 70) {
-        const analyser = analyserRef.current;
-        if (analyser) {
-          const values = new Uint8Array(analyser.frequencyBinCount);
-          analyser.getByteFrequencyData(values);
-          setLevels(
-            EMPTY_LEVELS.map((_, index) => {
-              const sample = values[index % values.length] ?? 0;
-              return Math.max(0.04, sample / 255);
-            }),
-          );
+    if (analyserRef.current) {
+      let frame = 0;
+      let lastUpdate = 0;
+      const render = (time: number) => {
+        if (time - lastUpdate > 70) {
+          const analyser = analyserRef.current;
+          if (analyser) {
+            const values = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(values);
+            setLevels(
+              EMPTY_LEVELS.map((_, index) => {
+                const sample = values[index % values.length] ?? 0;
+                return Math.max(0.04, sample / 255);
+              }),
+            );
+          }
+          lastUpdate = time;
         }
-        lastUpdate = time;
-      }
+        frame = requestAnimationFrame(render);
+      };
+      frame = requestAnimationFrame(render);
+      return () => cancelAnimationFrame(frame);
+    }
+
+    let frame = 0;
+    const render = (time: number) => {
+      setLevels(
+        EMPTY_LEVELS.map((_, index) => {
+          const wave = Math.sin(time / 180 + index * 0.55);
+          return Math.max(0.06, 0.22 + wave * 0.14);
+        }),
+      );
       frame = requestAnimationFrame(render);
     };
     frame = requestAnimationFrame(render);
