@@ -165,16 +165,30 @@ export function useRadioStreams() {
     const controller = new AbortController();
 
     async function loadFacets() {
-      try {
-        const response = await fetch("/api/stations/facets", {
-          signal: controller.signal,
-        });
-        if (!response.ok) return;
-        const data = (await response.json()) as FacetResponse;
-        setCountries(data.countries);
-        setGenres(data.genres);
-      } catch {
-        // Search remains available without optional filter lists.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const response = await fetch("/api/stations/facets", {
+            signal: controller.signal,
+          });
+          if (!response.ok) {
+            await sleep(700 * (attempt + 1), controller.signal);
+            continue;
+          }
+          const data = (await response.json()) as FacetResponse;
+          setCountries(data.countries ?? []);
+          setGenres(data.genres ?? []);
+          return;
+        } catch (reason) {
+          if (controller.signal.aborted) return;
+          if (reason instanceof DOMException && reason.name === "AbortError") {
+            return;
+          }
+          try {
+            await sleep(700 * (attempt + 1), controller.signal);
+          } catch {
+            return;
+          }
+        }
       }
     }
 

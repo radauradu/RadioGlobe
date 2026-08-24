@@ -1536,6 +1536,117 @@ button {
   gap: 8px;
 }
 
+.filter-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-right: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.filter-picker-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-picker-placeholder {
+  color: #86868b;
+}
+
+.filter-picker-chevron {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: #86868b;
+}
+
+.filter-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.filter-picker-sheet {
+  width: min(28rem, 100%);
+  max-height: min(88dvh, 640px);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.filter-picker-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 12px 0;
+}
+
+.filter-picker-controls {
+  flex-shrink: 0;
+  padding: 10px 12px 8px;
+}
+
+.filter-picker-list {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.filter-picker-option {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+  color: #1d1d1f;
+  font-size: 16px;
+  font-weight: 510;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+}
+
+.filter-picker-option + .filter-picker-option {
+  box-shadow: inset 0 0.5px 0 rgba(0, 0, 0, 0.08);
+}
+
+.filter-picker-option-active {
+  background: rgba(0, 113, 227, 0.08);
+  color: #0071e3;
+  font-weight: 600;
+}
+
+.filter-picker-sheet .apple-field,
+.filter-picker-sheet .apple-field-search {
+  height: 42px;
+  font-size: 16px;
+}
+
+@media (min-width: 768px) {
+  .filter-picker-overlay {
+    align-items: center;
+    padding: 1.5rem;
+  }
+
+  .filter-picker-sheet {
+    border-radius: 20px;
+  }
+}
+
 .sidebar-results-toggle {
   width: 100%;
   justify-content: space-between;
@@ -1887,6 +1998,18 @@ select {
   .sidebar-sheet .apple-field {
     height: 32px;
     font-size: 11px;
+  }
+
+  .sidebar-sheet .filter-picker-trigger {
+    height: 36px;
+    min-height: 36px;
+    font-size: 12px;
+    padding-inline: 10px 6px;
+  }
+
+  .sidebar-sheet .filter-picker-chevron {
+    width: 14px;
+    height: 14px;
   }
 
   .sidebar-sheet .apple-field-search {

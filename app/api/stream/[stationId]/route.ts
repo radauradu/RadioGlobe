@@ -1,3 +1,4 @@
+import { icyNameForStation } from "@/lib/mediaSession";
 import {
   encodeStreamResource,
   resolveStationStream,
@@ -44,7 +45,7 @@ export async function GET(request: Request, context: RouteContext) {
   try {
     const { stationId } = await context.params;
     const resource = new URL(request.url).searchParams.get("resource");
-    const { url } = await resolveStationStream(stationId, resource);
+    const { station, url } = await resolveStationStream(stationId, resource);
     const upstream = await safeStreamFetch(url, {
       signal: request.signal,
       headers: {
@@ -77,6 +78,7 @@ export async function GET(request: Request, context: RouteContext) {
           headers: {
             "Content-Type": "application/vnd.apple.mpegurl",
             "Cache-Control": "no-store",
+            "Icy-Name": icyNameForStation(station),
           },
         },
       );
@@ -86,6 +88,8 @@ export async function GET(request: Request, context: RouteContext) {
       "Content-Type": contentType,
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
+      "Icy-Name": icyNameForStation(station),
+      "Icy-Genre": "Live Radio",
     });
     const contentLength = upstream.headers.get("content-length");
     if (contentLength) headers.set("Content-Length", contentLength);
