@@ -1,4 +1,5 @@
 import type { RadioStation } from "@/lib/radioApi";
+import { APP_NAME } from "@/lib/brand";
 import { formatStationPlace } from "@/lib/place";
 import { parseNowPlaying } from "@/lib/text";
 
@@ -15,7 +16,7 @@ function headerSafeName(value: string) {
 }
 
 export function icyNameForStation(station: RadioStation) {
-  return headerSafeName(station.name) || "Radio Globe";
+  return headerSafeName(station.name) || APP_NAME;
 }
 
 export function mediaMetadataForStation(
@@ -30,7 +31,7 @@ export function mediaMetadataForStation(
   return new MediaMetadata({
     title: station.name,
     artist: nowPlaying ?? place.line,
-    album: "Radio Globe",
+    album: APP_NAME,
     artwork: SAME_ORIGIN_ARTWORK,
   });
 }
@@ -47,7 +48,7 @@ export function syncNowPlayingMetadata(
   if (!station) {
     navigator.mediaSession.metadata = null;
     if (typeof document !== "undefined") {
-      document.title = "Radio Globe";
+      document.title = APP_NAME;
     }
     return;
   }
@@ -58,7 +59,7 @@ export function syncNowPlayingMetadata(
   }
 
   if (typeof document !== "undefined") {
-    document.title = `${station.name} · Radio Globe`;
+    document.title = `${station.name} · ${APP_NAME}`;
   }
 
   // Never clear metadata first. iOS keeps the previous Now Playing item

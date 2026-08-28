@@ -1,4 +1,8 @@
 import { ImageResponse } from "next/og";
+import {
+  APP_NAME,
+  APP_SHORT_DESCRIPTION,
+} from "@/lib/brand";
 import { formatStationPlace } from "@/lib/place";
 import { readStationIdFromSearchParams } from "@/lib/siteMetadata";
 
@@ -80,7 +84,7 @@ function ogCard(title: string, subtitle: string) {
               opacity: 0.72,
             }}
           >
-            Radio Globe
+            {APP_NAME}
           </div>
           <div
             style={{
@@ -104,7 +108,7 @@ function ogCard(title: string, subtitle: string) {
           </div>
         </div>
         <div style={{ fontSize: 24, opacity: 0.55 }}>
-          Live radio around the world
+          Wander world radio on a 3D globe
         </div>
       </div>
     ),
@@ -121,22 +125,22 @@ export async function GET(request: Request) {
   const stationId = readStationIdFromSearchParams(params);
 
   if (!stationId) {
-    return ogCard("Radio Globe", "Listen to live radio stations around the world.");
+    return ogCard(APP_NAME, APP_SHORT_DESCRIPTION);
   }
 
   try {
     const station = await fetchOgStation(stationId);
     if (!station) {
       return ogCard(
-        "Radio Globe",
-        "Listen to live radio stations around the world.",
+        APP_NAME,
+        APP_SHORT_DESCRIPTION,
       );
     }
     return ogCard(station.name, formatStationPlace(station).line);
   } catch {
     return ogCard(
-      "Radio Globe",
-      "Listen to live radio stations around the world.",
+      APP_NAME,
+      APP_SHORT_DESCRIPTION,
     );
   }
 }

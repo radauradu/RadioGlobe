@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import HomePage from "@/components/HomePage";
 import { fetchStationById } from "@/lib/radioApi";
 import {
+  APP_DESCRIPTION,
+  APP_NAME,
+  APP_SHORT_DESCRIPTION,
+} from "@/lib/brand";
+import {
   buildOgImageUrl,
   readStationIdFromSearchParams,
   resolveMetadataBase,
@@ -9,8 +14,8 @@ import {
   stationShareTitle,
 } from "@/lib/siteMetadata";
 
-const DEFAULT_TITLE = "Radio Globe";
-const DEFAULT_DESCRIPTION = "Listen to live radio stations around the world.";
+const DEFAULT_TITLE = APP_NAME;
+const DEFAULT_DESCRIPTION = APP_DESCRIPTION;
 
 export async function generateMetadata({
   searchParams,
@@ -24,18 +29,19 @@ export async function generateMetadata({
 
   const baseMetadata: Metadata = {
     metadataBase,
-    title: DEFAULT_TITLE,
+    title: { absolute: DEFAULT_TITLE },
     description: DEFAULT_DESCRIPTION,
     openGraph: {
       title: DEFAULT_TITLE,
-      description: DEFAULT_DESCRIPTION,
+      description: APP_SHORT_DESCRIPTION,
       type: "website",
-      images: [{ url: defaultOgImage, width: 1200, height: 630 }],
+      siteName: APP_NAME,
+      images: [{ url: defaultOgImage, width: 1200, height: 630, alt: APP_NAME }],
     },
     twitter: {
       card: "summary_large_image",
       title: DEFAULT_TITLE,
-      description: DEFAULT_DESCRIPTION,
+      description: APP_SHORT_DESCRIPTION,
       images: [defaultOgImage],
     },
   };
@@ -51,7 +57,7 @@ export async function generateMetadata({
 
   return {
     ...baseMetadata,
-    title,
+    title: station.name,
     description,
     openGraph: {
       ...baseMetadata.openGraph,

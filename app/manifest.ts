@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
+import { APP_DESCRIPTION, APP_NAME } from "@/lib/brand";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Radio Globe",
-    short_name: "Radio Globe",
-    description: "Listen to live radio stations around the world.",
+    name: APP_NAME,
+    short_name: APP_NAME,
+    description: APP_DESCRIPTION,
     start_url: "/",
     display: "standalone",
     background_color: "#000000",

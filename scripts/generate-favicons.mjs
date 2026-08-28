@@ -6,7 +6,7 @@ import { spawn } from "node:child_process";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const publicDir = path.join(root, "public");
 
-async function fetchIcon(url: string) {
+async function fetchIcon(url) {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch ${url}: ${response.status}`);
@@ -14,14 +14,14 @@ async function fetchIcon(url: string) {
   return Buffer.from(await response.arrayBuffer());
 }
 
-async function writeIcoFromPng(pngPath: string, icoPath: string) {
-  await new Promise<void>((resolve, reject) => {
+async function writeIcoFromPng(pngPath, icoPath) {
+  await new Promise((resolve, reject) => {
     const child = spawn(
       "npx",
       ["--yes", "png-to-ico", pngPath],
       { cwd: root, stdio: ["ignore", "pipe", "inherit"] },
     );
-    const chunks: Buffer[] = [];
+    const chunks = [];
     child.stdout.on("data", (chunk) => chunks.push(chunk));
     child.on("error", reject);
     child.on("close", (code) => {

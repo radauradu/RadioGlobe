@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import ApplePanel from "@/components/ApplePanel";
 import FilterPicker from "@/components/FilterPicker";
 import StationArt from "@/components/StationArt";
+import { APP_NAME } from "@/lib/brand";
 import { formatStationPlace } from "@/lib/place";
 import type { RadioStation } from "@/lib/radioApi";
 import { shareStationLink } from "@/lib/shareStation";
@@ -156,7 +157,7 @@ export default function StationSidebar({
 
   const panelHeader = (
     <div className="sidebar-header">
-      <p className="apple-title">Radio Globe</p>
+      <p className="apple-title">{APP_NAME}</p>
       <button
         type="button"
         className="apple-icon-btn sidebar-close"
