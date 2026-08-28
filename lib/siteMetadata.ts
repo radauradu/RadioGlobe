@@ -1,4 +1,5 @@
 import type { RadioStation } from "./radioApi";
+import { APP_NAME } from "./brand";
 import { formatStationPlace } from "./place";
 
 export function resolveMetadataBase() {
@@ -12,7 +13,7 @@ export function resolveMetadataBase() {
 }
 
 export function stationShareTitle(station: RadioStation) {
-  return `${station.name} · Radio Globe`;
+  return `${station.name} · ${APP_NAME}`;
 }
 
 export function stationShareDescription(station: RadioStation) {

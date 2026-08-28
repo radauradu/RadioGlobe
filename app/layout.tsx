@@ -1,16 +1,44 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "./globals.css";
+import {
+  APP_DESCRIPTION,
+  APP_KEYWORDS,
+  APP_NAME,
+  APP_SHORT_DESCRIPTION,
+} from "@/lib/brand";
 import { buildOgImageUrl, resolveMetadataBase } from "@/lib/siteMetadata";
 
 const metadataBase = resolveMetadataBase();
 const ogImage = buildOgImageUrl(null, metadataBase);
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: APP_NAME,
+  description: APP_DESCRIPTION,
+  applicationCategory: "MultimediaApplication",
+  operatingSystem: "Any",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+};
+
 export const metadata: Metadata = {
   metadataBase,
-  title: "Radio Globe",
-  description: "Listen to live radio stations around the world.",
-  applicationName: "Radio Globe",
+  title: {
+    default: APP_NAME,
+    template: `%s · ${APP_NAME}`,
+  },
+  description: APP_DESCRIPTION,
+  applicationName: APP_NAME,
+  keywords: APP_KEYWORDS,
+  authors: [{ name: APP_NAME }],
+  creator: APP_NAME,
+  publisher: APP_NAME,
+  category: "music",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "48x48" },
@@ -20,19 +48,21 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "Radio Globe",
+    title: APP_NAME,
     statusBarStyle: "black-translucent",
   },
   openGraph: {
-    title: "Radio Globe",
-    description: "Listen to live radio stations around the world.",
+    title: APP_NAME,
+    description: APP_SHORT_DESCRIPTION,
     type: "website",
-    images: [{ url: ogImage, width: 1200, height: 630 }],
+    siteName: APP_NAME,
+    locale: "en_US",
+    images: [{ url: ogImage, width: 1200, height: 630, alt: APP_NAME }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Radio Globe",
-    description: "Listen to live radio stations around the world.",
+    title: APP_NAME,
+    description: APP_SHORT_DESCRIPTION,
     images: [ogImage],
   },
 };
@@ -56,7 +86,13 @@ export default function RootLayout({
           {"window.CESIUM_BASE_URL='/cesium/';"}
         </Script>
       </head>
-      <body>{children}</body>
+      <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        {children}
+      </body>
     </html>
   );
 }

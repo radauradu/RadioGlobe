@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RadioStation } from "./radioApi";
+import { APP_NAME } from "./brand";
 import {
   buildOgImageUrl,
   readStationIdFromSearchParams,
@@ -30,7 +31,7 @@ const station: RadioStation = {
 
 describe("siteMetadata", () => {
   it("formats station share title and description", () => {
-    expect(stationShareTitle(station)).toBe("Radio Test · Radio Globe");
+    expect(stationShareTitle(station)).toBe(`Radio Test · ${APP_NAME}`);
     expect(stationShareDescription(station)).toBe(
       "Live radio from Bucharest · Romania",
     );

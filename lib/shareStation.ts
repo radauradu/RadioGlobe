@@ -1,6 +1,7 @@
 "use client";
 
 import { buildStationShareUrl } from "@/lib/shareUrl";
+import { APP_NAME } from "@/lib/brand";
 
 export async function shareStationLink(stationId: string, stationName: string) {
   const url = buildStationShareUrl(stationId);
@@ -9,7 +10,7 @@ export async function shareStationLink(stationId: string, stationName: string) {
     try {
       await navigator.share({
         title: stationName,
-        text: `Listen to ${stationName} on Radio Globe`,
+        text: `Listen to ${stationName} on ${APP_NAME}`,
         url,
       });
       return "shared" as const;
