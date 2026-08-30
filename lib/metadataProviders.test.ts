@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  iHeartStationId,
   parseAzuraCast,
   parseIcecast,
+  parseIHeart,
   parseRadioCo,
   parseShoutcast,
 } from "./metadataProviders";
@@ -102,5 +104,25 @@ describe("keyless metadata provider parsers", () => {
     expect(parseShoutcast({ songtitle: "Artist - Track" })).toBe(
       "Artist - Track",
     );
+  });
+
+  it("parses iHeart current track metadata", () => {
+    expect(
+      parseIHeart({
+        title: "What You Need",
+        artist: "Tems",
+        album: "Love Is A Kingdom",
+      }),
+    ).toBe("Tems - What You Need");
+  });
+
+  it("extracts iHeart station ids from revma stream urls", () => {
+    expect(
+      iHeartStationId({
+        ...station,
+        streamUrl: "https://stream.revma.ihrhls.com/zc1037",
+        homepage: "https://q93.iheart.com/",
+      }),
+    ).toBe("1037");
   });
 });

@@ -4,11 +4,13 @@ import {
   StreamSecurityError,
 } from "@/lib/streamSecurity";
 import {
+  fetchIHeartMetadata,
   fetchProviderMetadata,
+  iHeartStationId,
   type NowPlayingMetadata,
 } from "@/lib/metadataProviders";
 import type { RadioStation } from "@/lib/radioApi";
-import { normalizeBroadcastText } from "@/lib/text";
+import { normalizeBroadcastText, normalizeIheartIcyTitle } from "@/lib/text";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +37,8 @@ function parseStreamTitle(metadata: Uint8Array) {
 async function probeIcyMetadata(url: URL): Promise<NowPlayingMetadata | null> {
   const upstream = await safeStreamFetch(url, {
     headers: {
-      Accept: "audio/*",
+      // Some redirect gateways (for example cloudrad.io) reject audio/* with 406.
+      Accept: "*/*",
       "Icy-MetaData": "1",
       "User-Agent": "RadioGlobe/1.0",
     },
@@ -98,10 +101,19 @@ async function probeIcyMetadata(url: URL): Promise<NowPlayingMetadata | null> {
   }
   const metadata = full.slice(interval + 1, targetLength);
   const streamTitle = parseStreamTitle(metadata);
-  return streamTitle ? { streamTitle, source: "icy" } : null;
+  if (!streamTitle) return null;
+  return {
+    streamTitle: normalizeIheartIcyTitle(streamTitle),
+    source: "icy",
+  };
 }
 
 async function resolveMetadata(station: RadioStation, url: URL) {
+  if (iHeartStationId(station)) {
+    const iheart = await fetchIHeartMetadata(station);
+    if (iheart) return iheart;
+  }
+
   try {
     const icy = await probeIcyMetadata(url);
     if (icy) return icy;

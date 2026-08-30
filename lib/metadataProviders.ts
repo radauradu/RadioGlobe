@@ -4,6 +4,7 @@ import { normalizeBroadcastText } from "./text";
 
 export type MetadataSource =
   | "icy"
+  | "iheart"
   | "radio.co"
   | "azuracast"
   | "icecast"
@@ -197,6 +198,57 @@ function radioCoId(station: RadioStation) {
   return null;
 }
 
+export function iHeartStationId(station: RadioStation) {
+  const values = [station.streamUrl, station.homepage];
+  for (const value of values) {
+    const zcMatch = value.match(/\bzc(\d+)\b/i);
+    if (zcMatch) return zcMatch[1];
+    const slugMatch = value.match(/\/live\/[^/?#]+-(\d+)\b/i);
+    if (slugMatch) return slugMatch[1];
+  }
+  return null;
+}
+
+export function parseIHeart(payload: unknown) {
+  const root = objectValue(payload);
+  return combineArtistTitle(root?.artist, root?.title);
+}
+
+export async function fetchIHeartMetadata(
+  station: RadioStation,
+): Promise<NowPlayingMetadata | null> {
+  const stationId = iHeartStationId(station);
+  if (!stationId) return null;
+
+  const url = new URL(
+    `/api/v3/live-meta/stream/${encodeURIComponent(stationId)}/currentTrackMeta`,
+    "https://us.api.iheart.com",
+  );
+  url.searchParams.set("defaultMetadata", "true");
+
+  await validatePublicStreamUrl(url.toString());
+  const response = await safeStreamFetch(url, {
+    headers: {
+      Accept: "application/json,text/json,*/*;q=0.2",
+      "User-Agent": "RadioGlobe/1.0",
+    },
+  });
+
+  if (response.status === 204) {
+    await response.body?.cancel();
+    return null;
+  }
+  if (!response.ok) {
+    await response.body?.cancel();
+    return null;
+  }
+
+  const payload = await readLimitedJson(response);
+  const streamTitle = parseIHeart(payload);
+  if (!streamTitle) return null;
+  return { streamTitle, source: "iheart" };
+}
+
 async function providerRequest(
   url: URL,
   source: Exclude<MetadataSource, "icy">,
@@ -211,6 +263,11 @@ async function providerRequest(
 export async function fetchProviderMetadata(
   station: RadioStation,
 ): Promise<NowPlayingMetadata | null> {
+  if (iHeartStationId(station)) {
+    const iHeartMetadata = await fetchIHeartMetadata(station);
+    if (iHeartMetadata) return iHeartMetadata;
+  }
+
   const streamUrl = await validatePublicStreamUrl(station.streamUrl);
   const origin = streamUrl.origin;
   const requests: Promise<NowPlayingMetadata>[] = [
