@@ -1,8 +1,8 @@
 "use client";
 
 import type * as Cesium from "cesium";
-import { LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import LoadingChip from "@/components/LoadingChip";
 import { loadCesium, type CesiumModule } from "@/lib/loadCesium";
 import type { RadioStation, StationPoint } from "@/lib/radioApi";
 import { nearestStations, type Coordinates } from "@/lib/spatial";
@@ -214,6 +214,7 @@ interface GlobeViewportProps {
   favoriteStationIds?: readonly string[];
   isPlaying?: boolean;
   focusCoordinates?: FocusRequest | null;
+  hideLoadingOverlay?: boolean;
   onSelectStation: (station: StationPoint) => void;
   onCenterSettled: (
     coordinates: Coordinates,
@@ -343,6 +344,7 @@ export default function GlobeViewport({
   favoriteStationIds = [],
   isPlaying = false,
   focusCoordinates = null,
+  hideLoadingOverlay = false,
   onSelectStation,
   onCenterSettled,
   onInteraction,
@@ -1141,12 +1143,9 @@ export default function GlobeViewport({
         className="absolute inset-0 touch-none overflow-hidden bg-transparent"
         aria-label="Interactive high-resolution globe of radio stations"
       />
-      {!viewerReady && !globeFailed ? (
-        <div className="absolute inset-0 grid place-items-center">
-          <div className="apple-panel flex items-center gap-2.5 px-4 py-3">
-            <LoaderCircle className="h-4 w-4 animate-spin text-[#86868b]" />
-            <span className="text-[15px] text-[#6e6e73]">Loading</span>
-          </div>
+      {!viewerReady && !globeFailed && !hideLoadingOverlay ? (
+        <div className="loading-chip-host">
+          <LoadingChip label="Loading radio stations…" />
         </div>
       ) : null}
     </>
