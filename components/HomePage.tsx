@@ -1,10 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { LocateFixed, LoaderCircle } from "lucide-react";
+import { LocateFixed } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AudioPlayerHUD from "@/components/AudioPlayerHUD";
 import CrosshairOverlay from "@/components/CrosshairOverlay";
+import LoadingChip from "@/components/LoadingChip";
 import PwaRegister from "@/components/PwaRegister";
 import WelcomeGuide from "@/components/WelcomeGuide";
 import StationSidebar, {
@@ -50,11 +51,8 @@ interface FocusRequest extends Coordinates {
 const GlobeViewport = dynamic(() => import("@/components/GlobeViewport"), {
   ssr: false,
   loading: () => (
-    <div className="absolute inset-0 grid place-items-center">
-      <div className="apple-panel flex items-center gap-2.5 px-4 py-3">
-        <LoaderCircle className="h-4 w-4 animate-spin text-[#86868b]" />
-        <span className="text-[15px] text-[#6e6e73]">Loading</span>
-      </div>
+    <div className="loading-chip-host">
+      <LoadingChip label="Loading radio stations…" />
     </div>
   ),
 });
@@ -505,6 +503,7 @@ export default function HomePage() {
         favoriteStationIds={favorites.ids}
         isPlaying={player.isPlaying}
         focusCoordinates={focusRequest}
+        hideLoadingOverlay={directory.isLoading}
         onSelectStation={(station) => void selectPoint(station, true)}
         onCenterSettled={handleCenterSettled}
         onInteraction={() => setIsScanning(true)}
@@ -512,6 +511,12 @@ export default function HomePage() {
           if (!awaitingCenterResolve) setIsScanning(false);
         }}
       />
+
+      {directory.isLoading ? (
+        <div className="loading-chip-host">
+          <LoadingChip label="Loading radio stations…" />
+        </div>
+      ) : null}
 
       <CrosshairOverlay
         isScanning={isScanning}
