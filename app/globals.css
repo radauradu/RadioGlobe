@@ -1665,6 +1665,237 @@ button {
   text-align: center;
 }
 
+.welcome-guide-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(0.75rem, env(safe-area-inset-top, 0px))
+    max(0.75rem, env(safe-area-inset-right, 0px))
+    max(0.75rem, env(safe-area-inset-bottom, 0px))
+    max(0.75rem, env(safe-area-inset-left, 0px));
+  background: rgba(0, 0, 0, 0.52);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.welcome-guide-panel {
+  width: min(100%, 22rem);
+  max-height: min(88dvh, 34rem);
+}
+
+.welcome-guide-sheet {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.welcome-guide-header {
+  flex-shrink: 0;
+  padding: 14px 14px 10px;
+}
+
+.welcome-guide-title {
+  margin: 0;
+  color: #1d1d1f;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.028em;
+  line-height: 1.15;
+}
+
+.welcome-guide-lead {
+  margin: 6px 0 0;
+  color: #6e6e73;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.welcome-guide-steps {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0 12px 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  list-style: none;
+}
+
+.welcome-guide-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(118, 118, 128, 0.08);
+}
+
+.welcome-guide-step-index {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(0, 113, 227, 0.12);
+  color: #0071e3;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.welcome-guide-step-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.welcome-guide-step-title {
+  color: #1d1d1f;
+  font-size: 13px;
+  font-weight: 620;
+  line-height: 1.25;
+}
+
+.welcome-guide-step-body {
+  color: #6e6e73;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.welcome-guide-footer {
+  flex-shrink: 0;
+  padding: 8px 12px 12px;
+  border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+}
+
+.welcome-guide-btn {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 12px;
+  background: #0071e3;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 620;
+}
+
+.welcome-guide-btn:hover:not(:disabled) {
+  background: #0077ed;
+}
+
+@media (min-width: 768px) {
+  .welcome-guide-panel {
+    width: min(100%, 26rem);
+    max-height: min(84dvh, 36rem);
+  }
+
+  .welcome-guide-header {
+    padding: 18px 18px 12px;
+  }
+
+  .welcome-guide-title {
+    font-size: 21px;
+  }
+
+  .welcome-guide-lead {
+    margin-top: 8px;
+    font-size: 15px;
+  }
+
+  .welcome-guide-steps {
+    gap: 10px;
+    padding: 0 16px 12px;
+  }
+
+  .welcome-guide-step {
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+  }
+
+  .welcome-guide-step-index {
+    width: 26px;
+    height: 26px;
+    font-size: 13px;
+  }
+
+  .welcome-guide-step-title {
+    font-size: 15px;
+  }
+
+  .welcome-guide-step-body {
+    font-size: 13px;
+  }
+
+  .welcome-guide-footer {
+    padding: 10px 16px 16px;
+  }
+
+  .welcome-guide-btn {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 389px) {
+  .welcome-guide-panel {
+    width: min(100%, 19.5rem);
+    max-height: min(90dvh, 30rem);
+  }
+
+  .welcome-guide-header {
+    padding: 12px 12px 8px;
+  }
+
+  .welcome-guide-title {
+    font-size: 15px;
+  }
+
+  .welcome-guide-lead {
+    font-size: 12px;
+  }
+
+  .welcome-guide-steps {
+    gap: 6px;
+    padding: 0 10px 8px;
+  }
+
+  .welcome-guide-step {
+    gap: 8px;
+    padding: 7px 8px;
+  }
+
+  .welcome-guide-step-index {
+    width: 20px;
+    height: 20px;
+    font-size: 11px;
+  }
+
+  .welcome-guide-step-title {
+    font-size: 12px;
+  }
+
+  .welcome-guide-step-body {
+    font-size: 11px;
+  }
+
+  .welcome-guide-footer {
+    padding: 6px 10px 10px;
+  }
+
+  .welcome-guide-btn {
+    min-height: 36px;
+    font-size: 14px;
+  }
+}
+
 .sidebar-results-toggle {
   width: 100%;
   justify-content: space-between;

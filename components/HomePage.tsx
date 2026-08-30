@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AudioPlayerHUD from "@/components/AudioPlayerHUD";
 import CrosshairOverlay from "@/components/CrosshairOverlay";
 import PwaRegister from "@/components/PwaRegister";
+import WelcomeGuide from "@/components/WelcomeGuide";
 import StationSidebar, {
   type StationListMode,
 } from "@/components/StationSidebar";
@@ -496,6 +497,7 @@ export default function HomePage() {
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-black">
       <PwaRegister />
+      <WelcomeGuide />
       <div className="space-backdrop" aria-hidden />
       <GlobeViewport
         stations={selectableStations}
