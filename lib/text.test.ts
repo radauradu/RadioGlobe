@@ -45,4 +45,22 @@ describe("parseNowPlaying", () => {
   it("returns empty fields when metadata is missing", () => {
     expect(parseNowPlaying(null)).toEqual({ artist: null, song: null });
   });
+
+  it("extracts iHeart revma icy song titles", () => {
+    expect(
+      parseNowPlaying(
+        'Lil Wayne - text="Uproar" song_spot="M" spotInstanceId="-1"',
+      ),
+    ).toEqual({
+      artist: "Lil Wayne",
+      song: "Uproar",
+    });
+  });
+
+  it("formats Live504 mix slugs into artist and song", () => {
+    expect(parseNowPlaying("live504mixnikki2")).toEqual({
+      artist: "Live504 Radio",
+      song: "Mix Nikki 2",
+    });
+  });
 });

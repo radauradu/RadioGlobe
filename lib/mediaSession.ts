@@ -25,13 +25,11 @@ export function mediaMetadataForStation(
 ) {
   const place = formatStationPlace(station);
   const { artist, song } = parseNowPlaying(streamTitle);
-  const nowPlaying =
-    song && artist ? `${artist} — ${song}` : song ?? artist ?? null;
 
   return new MediaMetadata({
-    title: station.name,
-    artist: nowPlaying ?? place.line,
-    album: APP_NAME,
+    title: song ?? station.name,
+    artist: artist ?? (song ? station.name : place.line),
+    album: station.name,
     artwork: SAME_ORIGIN_ARTWORK,
   });
 }

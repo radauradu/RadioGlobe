@@ -64,8 +64,41 @@ export function normalizeBroadcastText(value: string) {
     .trim();
 }
 
+export function normalizeIheartIcyTitle(value: string) {
+  const normalized = normalizeBroadcastText(value);
+  const textMatch = normalized.match(/\btext="([^"]+)"/i);
+  const titleMatch = normalized.match(/\btitle="([^"]+)"/i);
+  const song = textMatch?.[1] ?? titleMatch?.[1];
+  if (!song) return normalized;
+
+  const artistPrefix = normalized.match(/^(.+?)\s*-\s*text="/i);
+  const artist = artistPrefix?.[1]?.trim();
+  if (artist) return `${artist} - ${song}`;
+  return song;
+}
+
+export function normalizeLive504IcyTitle(value: string) {
+  const normalized = normalizeBroadcastText(value);
+  if (!normalized) return normalized;
+
+  const mixMatch = normalized.match(/^live504mix(.+)$/i);
+  if (!mixMatch) return normalized;
+
+  const mixName = mixMatch[1]
+    .replace(/([a-z])(\d)/gi, "$1 $2")
+    .replace(/(\d)([a-z])/gi, "$1 $2")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+
+  return `Live504 Radio - Mix ${mixName}`;
+}
+
 export function parseNowPlaying(streamTitle: string | null | undefined) {
-  const text = streamTitle ? normalizeBroadcastText(streamTitle) : "";
+  const text = streamTitle
+    ? normalizeLive504IcyTitle(normalizeIheartIcyTitle(streamTitle))
+    : "";
   if (!text) return { artist: null, song: null };
 
   const parts = text

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { curatedStationPoints, mergeCuratedStationPoints } from "@/lib/curatedStations";
 import type { RadioStation, StationPoint } from "@/lib/radioApi";
 import {
   readStationIndex,
@@ -90,7 +91,9 @@ export function useRadioStreams() {
           Date.now() - cached.cachedAt < INDEX_CACHE_TTL &&
           (cached.complete || cached.stations.length >= TARGET_STATIONS)
         ) {
-          const stations = cached.stations.slice(0, TARGET_STATIONS);
+          const stations = mergeCuratedStationPoints(
+            cached.stations.slice(0, TARGET_STATIONS),
+          );
           await revealStations(stations, 0, controller.signal, (visible) => {
             setStationPoints(visible);
             setIsLoading(false);
@@ -98,7 +101,9 @@ export function useRadioStreams() {
           return;
         }
 
-        const deduplicated = new Map<string, StationPoint>();
+        const deduplicated = new Map<string, StationPoint>(
+          curatedStationPoints().map((point) => [point.id, point]),
+        );
         let offset = 0;
         let hasMore = true;
         let revealedCount = 0;
@@ -121,7 +126,9 @@ export function useRadioStreams() {
           offset = page.nextOffset;
           hasMore = page.hasMore && offset > previousOffset;
 
-          const stations = [...deduplicated.values()].slice(0, TARGET_STATIONS);
+          const stations = mergeCuratedStationPoints(
+            [...deduplicated.values()].slice(0, TARGET_STATIONS),
+          );
           revealedCount = await revealStations(
             stations,
             revealedCount,
@@ -133,7 +140,9 @@ export function useRadioStreams() {
           );
         }
 
-        const stations = [...deduplicated.values()].slice(0, TARGET_STATIONS);
+        const stations = mergeCuratedStationPoints(
+          [...deduplicated.values()].slice(0, TARGET_STATIONS),
+        );
         setStationPoints(stations);
         setError(null);
         await writeStationIndex({
