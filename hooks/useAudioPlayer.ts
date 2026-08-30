@@ -16,8 +16,20 @@ import {
   useDirectAudioOutput,
 } from "@/lib/mediaSession";
 import { fadeAudioVolume, playTuningJingle, stopTuningSound } from "@/lib/tuningSound";
+import {
+  MAX_STALL_RECONNECTS,
+  STALL_RECONNECT_MS,
+  canReconnectLiveStream,
+  directPlaybackUrl,
+} from "@/lib/streamPlayback";
 
-export type PlayerStatus = "idle" | "loading" | "playing" | "paused" | "error";
+export type PlayerStatus =
+  | "idle"
+  | "loading"
+  | "reconnecting"
+  | "playing"
+  | "paused"
+  | "error";
 
 const EMPTY_LEVELS = Array.from({ length: 18 }, () => 0);
 
@@ -45,9 +57,6 @@ function createPlayerAudioElement() {
   audio.volume = 0.72;
   audio.setAttribute("playsinline", "");
   audio.setAttribute("webkit-playsinline", "true");
-  if (!useDirectAudioOutput()) {
-    audio.crossOrigin = "anonymous";
-  }
   audio.style.cssText =
     "position:fixed;width:0;height:0;opacity:0;pointer-events:none";
   document.body.appendChild(audio);
@@ -110,12 +119,15 @@ function waitForPlaybackReady(
       window.clearTimeout(timer);
       audio.removeEventListener("canplay", onReady);
       audio.removeEventListener("loadeddata", onReady);
+      audio.removeEventListener("error", onError);
       resolve(ready);
     };
     const onReady = () => finish(true);
+    const onError = () => finish(false);
     const timer = window.setTimeout(() => finish(false), timeoutMs);
     audio.addEventListener("canplay", onReady);
     audio.addEventListener("loadeddata", onReady);
+    audio.addEventListener("error", onError);
   });
 }
 
@@ -158,6 +170,12 @@ export function useAudioPlayer(
   const autoUnmuteCleanupRef = useRef<(() => void) | null>(null);
   const suppressPlatformPauseRef = useRef(false);
   const streamTitleRef = useRef<string | null>(null);
+  const stallTimerRef = useRef<number | null>(null);
+  const stallReconnectCountRef = useRef(0);
+  const reconnectingRef = useRef(false);
+  const reconnectFromStallRef = useRef<() => Promise<void>>(
+    async () => undefined,
+  );
   const [audioEpoch, setAudioEpoch] = useState(0);
 
   bindSharedAudioElement(audioRef);
@@ -177,6 +195,12 @@ export function useAudioPlayer(
   useEffect(() => {
     volumeRef.current = volume;
   }, [volume]);
+
+  const clearStallTimer = useCallback(() => {
+    if (stallTimerRef.current == null) return;
+    window.clearTimeout(stallTimerRef.current);
+    stallTimerRef.current = null;
+  }, []);
 
   const destroyHls = useCallback(() => {
     const hls = hlsRef.current;
@@ -206,33 +230,10 @@ export function useAudioPlayer(
   }, []);
 
   const ensureAnalyser = useCallback(() => {
-    if (useDirectAudioOutput()) return;
-
-    const audio = bindSharedAudioElement(audioRef);
-    if (!audio || typeof AudioContext === "undefined") return;
-
-    try {
-      const context =
-        audioContextRef.current ??
-        new AudioContext({ latencyHint: "interactive" });
-      audioContextRef.current = context;
-      if (!sourceRef.current) {
-        const source = context.createMediaElementSource(audio);
-        const analyser = context.createAnalyser();
-        const outputGain = context.createGain();
-        analyser.fftSize = 64;
-        analyser.smoothingTimeConstant = 0.78;
-        source.connect(analyser);
-        analyser.connect(outputGain);
-        outputGain.connect(context.destination);
-        sourceRef.current = source;
-        analyserRef.current = analyser;
-        outputGainRef.current = outputGain;
-      }
-    } catch {
-      analyserRef.current = null;
-      outputGainRef.current = null;
-    }
+    // Live radio plays through the native <audio> element so Icecast URLs
+    // do not need CORS. Web Audio would force a same-origin relay and the
+    // Vercel function would cut the stream after a short time.
+    return;
   }, []);
 
   const restoreAudibleOutput = useCallback(async () => {
@@ -293,6 +294,7 @@ export function useAudioPlayer(
   const haltAudioOutput = useCallback(() => {
     suppressPlatformPauseRef.current = true;
     attachGenerationRef.current += 1;
+    clearStallTimer();
     silencePlaybackOutput();
     destroyHls();
     const audio = bindSharedAudioElement(audioRef);
@@ -315,7 +317,7 @@ export function useAudioPlayer(
     window.setTimeout(() => {
       suppressPlatformPauseRef.current = false;
     }, 0);
-  }, [destroyHls, silencePlaybackOutput]);
+  }, [clearStallTimer, destroyHls, silencePlaybackOutput]);
 
   const cancelPlaybackIntent = useCallback(() => {
     playbackGenerationRef.current += 1;
@@ -332,8 +334,11 @@ export function useAudioPlayer(
     wantPlayingRef.current = false;
     setWantsPlayback(false);
     startedPlayingRef.current = false;
+    stallReconnectCountRef.current = 0;
+    reconnectingRef.current = false;
     clearAutoUnmute();
     destroyHls();
+    clearStallTimer();
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
@@ -343,7 +348,7 @@ export function useAudioPlayer(
     window.setTimeout(() => {
       suppressPlatformPauseRef.current = false;
     }, 0);
-  }, [clearAutoUnmute, destroyHls]);
+  }, [clearAutoUnmute, clearStallTimer, destroyHls]);
 
   // Autoplay can start the media element while leaving Web Audio suspended.
   // Resume the analyser on the next genuine user gesture so the spectrum
@@ -367,7 +372,10 @@ export function useAudioPlayer(
     (nextStation: RadioStation, relay: boolean) =>
       relay
         ? `/api/stream/${encodeURIComponent(nextStation.id)}?session=${Date.now()}`
-        : nextStation.streamUrl,
+        : directPlaybackUrl(
+            nextStation.streamUrl,
+            typeof window === "undefined" ? "https:" : window.location.protocol,
+          ),
     [],
   );
 
@@ -436,6 +444,10 @@ export function useAudioPlayer(
           ) {
             hls.destroy();
             if (hlsRef.current === hls) hlsRef.current = null;
+            return;
+          }
+          if (startedPlayingRef.current) {
+            void reconnectFromStallRef.current();
             return;
           }
           if (!usingRelayRef.current) {
@@ -566,11 +578,103 @@ export function useAudioPlayer(
     [armAutoUnmute, attachSource, restoreAudibleOutput],
   );
 
+  const reconnectFromStall = useCallback(async () => {
+    const current = stationRef.current;
+    if (!current || !wantPlayingRef.current || reconnectingRef.current) return;
+
+    if (
+      !canReconnectLiveStream({
+        wantsPlayback: true,
+        hasStarted: true,
+        reconnectAttempts: stallReconnectCountRef.current,
+      })
+    ) {
+      wantPlayingRef.current = false;
+      setWantsPlayback(false);
+      startedPlayingRef.current = false;
+      clearStallTimer();
+      const audio = audioRef.current;
+      if (audio) audio.pause();
+      setStatus("error");
+      setError("Station disconnected. Press play to retry.");
+      return;
+    }
+
+    reconnectingRef.current = true;
+    stallReconnectCountRef.current += 1;
+    playbackGenerationRef.current += 1;
+    const generation = playbackGenerationRef.current;
+    setStatus("reconnecting");
+    setError(null);
+    attachSource(current, false);
+
+    try {
+      const started = await attemptPlayback(current, generation, {
+        userInitiated: true,
+      });
+      if (
+        playbackGenerationRef.current !== generation ||
+        !wantPlayingRef.current
+      ) {
+        return;
+      }
+      if (started) {
+        await restoreAudibleOutput();
+        startedPlayingRef.current = true;
+        setStatus("playing");
+        setError(null);
+        return;
+      }
+      if (stallReconnectCountRef.current < MAX_STALL_RECONNECTS) {
+        stallTimerRef.current = window.setTimeout(() => {
+          stallTimerRef.current = null;
+          void reconnectFromStallRef.current();
+        }, STALL_RECONNECT_MS);
+        return;
+      }
+      wantPlayingRef.current = false;
+      setWantsPlayback(false);
+      startedPlayingRef.current = false;
+      setStatus("error");
+      setError("Station disconnected. Press play to retry.");
+    } finally {
+      if (playbackGenerationRef.current === generation) {
+        reconnectingRef.current = false;
+      }
+    }
+  }, [attachSource, attemptPlayback, clearStallTimer, restoreAudibleOutput]);
+
+  useEffect(() => {
+    reconnectFromStallRef.current = reconnectFromStall;
+  }, [reconnectFromStall]);
+
   useEffect(() => {
     bindSharedAudioElement(audioRef);
 
     const audio = audioRef.current;
     if (!audio) return;
+
+    const scheduleStallReconnect = () => {
+      if (suppressPlatformPauseRef.current || reconnectingRef.current) return;
+      if (
+        !canReconnectLiveStream({
+          wantsPlayback: wantPlayingRef.current,
+          hasStarted: startedPlayingRef.current,
+          reconnectAttempts: stallReconnectCountRef.current,
+        })
+      ) {
+        if (wantPlayingRef.current && !startedPlayingRef.current) {
+          setStatus("loading");
+        }
+        return;
+      }
+      setStatus("reconnecting");
+      if (stallTimerRef.current != null) return;
+      stallTimerRef.current = window.setTimeout(() => {
+        stallTimerRef.current = null;
+        void reconnectFromStallRef.current();
+      }, STALL_RECONNECT_MS);
+    };
 
     const onPlaying = () => {
       if (!wantPlayingRef.current) {
@@ -578,6 +682,9 @@ export function useAudioPlayer(
         haltAudioOutput();
         return;
       }
+      clearStallTimer();
+      stallReconnectCountRef.current = 0;
+      reconnectingRef.current = false;
       startedPlayingRef.current = true;
       setStatus("playing");
       setError(null);
@@ -588,9 +695,16 @@ export function useAudioPlayer(
       }
     };
     const onPause = () => {
-      if (suppressPlatformPauseRef.current) return;
+      if (suppressPlatformPauseRef.current || reconnectingRef.current) return;
 
-      if (wantPlayingRef.current && stationRef.current && !audio.ended) {
+      if (wantPlayingRef.current && stationRef.current) {
+        if (
+          audio.ended ||
+          audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA
+        ) {
+          scheduleStallReconnect();
+          return;
+        }
         pausePlayback();
         return;
       }
@@ -601,13 +715,24 @@ export function useAudioPlayer(
       }
     };
     const onWaiting = () => {
-      if (wantPlayingRef.current && !startedPlayingRef.current) {
-        setStatus("loading");
-      }
+      scheduleStallReconnect();
+    };
+    const onStalled = () => {
+      scheduleStallReconnect();
+    };
+    const onEnded = () => {
+      if (suppressPlatformPauseRef.current || reconnectingRef.current) return;
+      if (!wantPlayingRef.current || !startedPlayingRef.current) return;
+      void reconnectFromStallRef.current();
     };
     const onError = () => {
       const current = stationRef.current;
       if (!current || !wantPlayingRef.current) return;
+      if (suppressPlatformPauseRef.current || reconnectingRef.current) return;
+      if (startedPlayingRef.current) {
+        scheduleStallReconnect();
+        return;
+      }
       if (!usingRelayRef.current) {
         attachSource(current, true);
         void audio.play().catch(() => {
@@ -631,15 +756,25 @@ export function useAudioPlayer(
     audio.addEventListener("playing", onPlaying);
     audio.addEventListener("pause", onPause);
     audio.addEventListener("waiting", onWaiting);
+    audio.addEventListener("stalled", onStalled);
+    audio.addEventListener("ended", onEnded);
     audio.addEventListener("error", onError);
 
     return () => {
       audio.removeEventListener("playing", onPlaying);
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("waiting", onWaiting);
+      audio.removeEventListener("stalled", onStalled);
+      audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("error", onError);
     };
-  }, [attachSource, haltAudioOutput, pausePlayback, audioEpoch]);
+  }, [
+    attachSource,
+    clearStallTimer,
+    haltAudioOutput,
+    pausePlayback,
+    audioEpoch,
+  ]);
 
   const tune = useCallback(
     async (nextStation: RadioStation, autoplay = true) => {
@@ -675,6 +810,8 @@ export function useAudioPlayer(
 
       stationRef.current = nextStation;
       startedPlayingRef.current = false;
+      stallReconnectCountRef.current = 0;
+      reconnectingRef.current = false;
       setStation(nextStation);
       setStreamTitle(null);
       streamTitleRef.current = null;
@@ -692,7 +829,7 @@ export function useAudioPlayer(
 
       setStatus("loading");
       audio.muted = mutedRef.current;
-      attachSource(nextStation, true);
+      attachSource(nextStation, false);
 
       clearAutoUnmute();
       try {
@@ -775,7 +912,7 @@ export function useAudioPlayer(
     setStatus("loading");
     const stationToPlay = stationRef.current;
     try {
-      attachSource(stationToPlay, true);
+      attachSource(stationToPlay, false);
       if (
         playbackGenerationRef.current !== generation ||
         !wantPlayingRef.current
@@ -950,7 +1087,9 @@ export function useAudioPlayer(
   return {
     station,
     status,
-    isPlaying: status === "playing" || (wantsPlayback && status === "loading"),
+    isPlaying:
+      status === "playing" ||
+      (wantsPlayback && (status === "loading" || status === "reconnecting")),
     wantsPlayback,
     awaitingUnmute,
     volume,

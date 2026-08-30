@@ -63,6 +63,7 @@ export default function AudioPlayerHUD({
     statusOverride ??
     error ??
     (status === "loading" ? "Connecting…" : null) ??
+    (status === "reconnecting" ? "Reconnecting…" : null) ??
     (station && status === "paused" ? "Paused" : null);
   const title =
     song ??
