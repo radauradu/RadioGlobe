@@ -8,6 +8,7 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 interface RouteContext {
   params: Promise<{ stationId: string }>;
@@ -86,15 +87,12 @@ export async function GET(request: Request, context: RouteContext) {
 
     const headers = new Headers({
       "Content-Type": contentType,
-      "Cache-Control": "no-store",
+      "Cache-Control": "no-store, no-transform",
       "X-Content-Type-Options": "nosniff",
+      "X-Accel-Buffering": "no",
       "Icy-Name": icyNameForStation(station),
       "Icy-Genre": "Live Radio",
     });
-    const contentLength = upstream.headers.get("content-length");
-    if (contentLength) headers.set("Content-Length", contentLength);
-    const acceptRanges = upstream.headers.get("accept-ranges");
-    if (acceptRanges) headers.set("Accept-Ranges", acceptRanges);
 
     return new Response(upstream.body, { headers });
   } catch (error) {

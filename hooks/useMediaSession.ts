@@ -6,7 +6,6 @@ import type { RadioStation } from "@/lib/radioApi";
 import {
   syncMediaSessionPlaybackState,
   syncNowPlayingMetadata,
-  useDirectAudioOutput,
 } from "@/lib/mediaSession";
 
 interface UseMediaSessionOptions {
@@ -95,7 +94,7 @@ export function useMediaSession({
   }, [station?.id, station?.name, station?.favicon, streamTitle]);
 
   useEffect(() => {
-    if (!useDirectAudioOutput() || !station || status !== "playing") return;
+    if (!station || status !== "playing") return;
 
     const interval = window.setInterval(() => {
       const current = stationRef.current;
