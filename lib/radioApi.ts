@@ -1,6 +1,10 @@
 import { feature as countryFeature } from "@rapideditor/country-coder";
 import tzLookup from "tz-lookup";
 import {
+  getCuratedStationById,
+  mergeCuratedSearchResults,
+} from "./curatedStations";
+import {
   genreSearchTags,
   normalizeGenreFacets,
 } from "./genreCatalog";
@@ -389,9 +393,12 @@ export async function searchStations({
           merged.set(station.id, station);
         }
       }
-      return [...merged.values()]
-        .sort((left, right) => right.clickCount - left.clickCount)
-        .slice(0, Math.min(Math.max(limit, 1), 200));
+      return mergeCuratedSearchResults(
+        [...merged.values()]
+          .sort((left, right) => right.clickCount - left.clickCount)
+          .slice(0, Math.min(Math.max(limit, 1), 200)),
+        { query: searchQuery, country, genre: trimmedGenre, language },
+      ).slice(0, Math.min(Math.max(limit, 1), 200));
     }
 
     return searchStationsByTag({
@@ -434,9 +441,15 @@ async function searchStationsByTag({
     `/json/stations/search?${query}`,
     { cache: "no-store" },
   );
-  return raw
+  const stations = raw
     .map(normalizeStation)
     .filter((station): station is RadioStation => station !== null);
+  return mergeCuratedSearchResults(stations, {
+    query: searchQuery,
+    country,
+    genre,
+    language,
+  }).slice(0, Math.min(Math.max(limit, 1), 200));
 }
 
 export async function fetchStationFacets() {
@@ -499,6 +512,9 @@ export async function fetchStationById(stationId: string) {
   if (!/^[a-zA-Z0-9-]{8,64}$/.test(stationId)) {
     return null;
   }
+
+  const curated = getCuratedStationById(stationId);
+  if (curated) return curated;
 
   const raw = await fetchFromMirrors<RadioBrowserStation[]>(
     `/json/stations/byuuid/${encodeURIComponent(stationId)}`,
