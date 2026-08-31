@@ -1,8 +1,8 @@
-# Radio Globe
+# WanderFM
 
-Explore live radio stations on a fast, interactive 3D Earth. Radio Globe is a
-Next.js App Router MVP powered by CesiumJS, the public Radio Browser directory,
-HTML5 Audio, and HLS.js.
+**WanderFM** lets you explore live radio stations on a fast, interactive 3D Earth.
+This repo (RadioGlobe) is a Next.js App Router app powered by CesiumJS, the public
+Radio Browser directory, HTML5 Audio, and HLS.js.
 
 ## Run locally
 

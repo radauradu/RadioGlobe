@@ -1,9 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { RadioStation } from "./radioApi";
-import { APP_NAME } from "./brand";
+import { APP_GITHUB_URL, APP_NAME } from "./brand";
 import {
+  buildCanonicalUrl,
   buildOgImageUrl,
+  googleSiteVerification,
   readStationIdFromSearchParams,
+  siteSocialProfiles,
   stationShareDescription,
   stationShareTitle,
 } from "./siteMetadata";
@@ -53,5 +56,23 @@ describe("siteMetadata", () => {
       }),
     ).toBe("abcd1234-5678-90ab-cdef-1234567890ab");
     expect(readStationIdFromSearchParams({ station: "bad" })).toBeNull();
+  });
+
+  it("builds canonical urls without query params", () => {
+    const base = new URL("https://wanderfm.com");
+    expect(buildCanonicalUrl("/", base)).toBe("https://wanderfm.com/");
+    expect(buildCanonicalUrl("/about", base)).toBe("https://wanderfm.com/about");
+  });
+
+  it("exposes site social profiles", () => {
+    expect(siteSocialProfiles()).toEqual([APP_GITHUB_URL]);
+  });
+
+  it("reads optional google site verification", () => {
+    vi.stubEnv("GOOGLE_SITE_VERIFICATION", "abc123");
+    expect(googleSiteVerification()).toBe("abc123");
+    vi.stubEnv("GOOGLE_SITE_VERIFICATION", "  ");
+    expect(googleSiteVerification()).toBeUndefined();
+    vi.unstubAllEnvs();
   });
 });
