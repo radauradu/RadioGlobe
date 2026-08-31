@@ -1,5 +1,5 @@
 import type { RadioStation } from "./radioApi";
-import { APP_NAME } from "./brand";
+import { APP_GITHUB_URL, APP_NAME } from "./brand";
 import { formatStationPlace } from "./place";
 
 export function resolveMetadataBase() {
@@ -19,6 +19,21 @@ export function stationShareTitle(station: RadioStation) {
 export function stationShareDescription(station: RadioStation) {
   const place = formatStationPlace(station);
   return `Live radio from ${place.line}`;
+}
+
+export function buildCanonicalUrl(pathname: string, base?: URL) {
+  const origin = base ?? resolveMetadataBase();
+  const normalizedPath = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  return new URL(normalizedPath, origin).toString();
+}
+
+export function siteSocialProfiles() {
+  return [APP_GITHUB_URL];
+}
+
+export function googleSiteVerification() {
+  const value = process.env.GOOGLE_SITE_VERIFICATION?.trim();
+  return value || undefined;
 }
 
 export function buildOgImageUrl(stationId?: string | null, base?: URL) {

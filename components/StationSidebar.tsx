@@ -8,6 +8,7 @@ import {
   Share,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import ApplePanel from "@/components/ApplePanel";
 import FilterPicker from "@/components/FilterPicker";
@@ -321,6 +322,11 @@ export default function StationSidebar({
       {panelHeader}
       {browseControls}
       {stationList}
+      <footer className="sidebar-about-footer">
+        <Link href="/about" className="sidebar-about-link" onClick={closeIfCompact}>
+          About {APP_NAME}
+        </Link>
+      </footer>
     </>
   );
 

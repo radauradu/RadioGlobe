@@ -4,9 +4,11 @@ import { fetchStationById } from "@/lib/radioApi";
 import {
   APP_DESCRIPTION,
   APP_NAME,
+  APP_SEO_TITLE,
   APP_SHORT_DESCRIPTION,
 } from "@/lib/brand";
 import {
+  buildCanonicalUrl,
   buildOgImageUrl,
   readStationIdFromSearchParams,
   resolveMetadataBase,
@@ -14,7 +16,7 @@ import {
   stationShareTitle,
 } from "@/lib/siteMetadata";
 
-const DEFAULT_TITLE = APP_NAME;
+const DEFAULT_TITLE = APP_SEO_TITLE;
 const DEFAULT_DESCRIPTION = APP_DESCRIPTION;
 
 export async function generateMetadata({
@@ -26,16 +28,21 @@ export async function generateMetadata({
   const metadataBase = resolveMetadataBase();
   const stationId = readStationIdFromSearchParams(params);
   const defaultOgImage = buildOgImageUrl(null, metadataBase);
+  const canonical = buildCanonicalUrl("/", metadataBase);
 
   const baseMetadata: Metadata = {
     metadataBase,
     title: { absolute: DEFAULT_TITLE },
     description: DEFAULT_DESCRIPTION,
+    alternates: {
+      canonical,
+    },
     openGraph: {
       title: DEFAULT_TITLE,
       description: APP_SHORT_DESCRIPTION,
       type: "website",
       siteName: APP_NAME,
+      url: canonical,
       images: [{ url: defaultOgImage, width: 1200, height: 630, alt: APP_NAME }],
     },
     twitter: {
@@ -59,6 +66,9 @@ export async function generateMetadata({
     ...baseMetadata,
     title: station.name,
     description,
+    alternates: {
+      canonical,
+    },
     openGraph: {
       ...baseMetadata.openGraph,
       title,
@@ -75,5 +85,13 @@ export async function generateMetadata({
 }
 
 export default function Page() {
-  return <HomePage />;
+  return (
+    <>
+      <div className="sr-only">
+        <h1>{APP_NAME}</h1>
+        <p>{APP_DESCRIPTION}</p>
+      </div>
+      <HomePage />
+    </>
+  );
 }
