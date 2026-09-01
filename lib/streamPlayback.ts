@@ -9,6 +9,22 @@ export const RELAY_ROTATE_MS = 4 * 60 * 1000;
 export const RELAY_OVERLAP_LEAD_MS = 45_000;
 export const RELAY_OVERLAP_CROSSFADE_MS = 120;
 
+export type PlaybackMode = "direct" | "relay";
+
+export function nextPlaybackMode({
+  usingRelay,
+  directAttempts,
+  maxDirectAttempts = MAX_DIRECT_ATTEMPTS_BEFORE_RELAY,
+}: {
+  usingRelay: boolean;
+  directAttempts: number;
+  maxDirectAttempts?: number;
+}): PlaybackMode {
+  if (usingRelay) return "relay";
+  if (directAttempts < maxDirectAttempts) return "direct";
+  return "relay";
+}
+
 export function canReconnectLiveStream({
   wantsPlayback,
   hasStarted,

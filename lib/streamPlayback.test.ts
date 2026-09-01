@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_DIRECT_ATTEMPTS_BEFORE_RELAY,
   MAX_STALL_RECONNECTS,
   RELAY_OVERLAP_LEAD_MS,
   RELAY_ROTATE_MS,
   canReconnectLiveStream,
   directPlaybackUrl,
   isRelayPlaybackUrl,
+  nextPlaybackMode,
   relayPlaybackUrl,
 } from "./streamPlayback";
 
@@ -89,5 +91,40 @@ describe("directPlaybackUrl", () => {
 
   it("starts relay overlap before the rotation deadline", () => {
     expect(RELAY_OVERLAP_LEAD_MS).toBeLessThan(RELAY_ROTATE_MS);
+  });
+});
+
+describe("nextPlaybackMode", () => {
+  it("stays on relay once relay playback has started", () => {
+    expect(
+      nextPlaybackMode({ usingRelay: true, directAttempts: 0 }),
+    ).toBe("relay");
+    expect(
+      nextPlaybackMode({
+        usingRelay: true,
+        directAttempts: MAX_DIRECT_ATTEMPTS_BEFORE_RELAY,
+      }),
+    ).toBe("relay");
+  });
+
+  it("tries direct while under the attempt cap", () => {
+    expect(
+      nextPlaybackMode({ usingRelay: false, directAttempts: 0 }),
+    ).toBe("direct");
+    expect(
+      nextPlaybackMode({
+        usingRelay: false,
+        directAttempts: MAX_DIRECT_ATTEMPTS_BEFORE_RELAY - 1,
+      }),
+    ).toBe("direct");
+  });
+
+  it("falls back to relay after direct attempts are exhausted", () => {
+    expect(
+      nextPlaybackMode({
+        usingRelay: false,
+        directAttempts: MAX_DIRECT_ATTEMPTS_BEFORE_RELAY,
+      }),
+    ).toBe("relay");
   });
 });
