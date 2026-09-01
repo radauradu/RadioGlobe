@@ -6,6 +6,7 @@ import {
 } from "./curatedStations";
 import {
   countryFilterQueryValue,
+  countryFilterUsesCountryCode,
   displayCountryName,
 } from "./countryNames";
 import {
@@ -438,7 +439,13 @@ async function searchStationsByTag({
   });
   if (searchQuery.trim()) query.set("name", searchQuery.trim());
   const countryFilter = countryFilterQueryValue(country);
-  if (countryFilter.trim()) query.set("country", countryFilter.trim());
+  if (countryFilter.trim()) {
+    if (countryFilterUsesCountryCode(country)) {
+      query.set("countrycode", countryFilter.trim());
+    } else {
+      query.set("country", countryFilter.trim());
+    }
+  }
   if (genre.trim()) query.set("tag", genre.trim());
   if (language.trim()) query.set("language", language.trim());
 

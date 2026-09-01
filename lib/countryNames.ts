@@ -8,7 +8,10 @@ function normalizeCountryKey(value: string) {
     .trim();
 }
 
-const NORTH_KOREA_API_NAME = "Korea, Democratic People's Republic of";
+/** Radio Browser facet / station country label (not ISO). */
+export const NORTH_KOREA_API_NAME =
+  "The Democratic Peoples Republic Of Korea";
+export const NORTH_KOREA_COUNTRY_CODE = "KP";
 
 function isNorthKoreaName(value: string) {
   const key = normalizeCountryKey(value);
@@ -30,7 +33,12 @@ export function displayCountryName(value: string) {
 export function countryFilterQueryValue(value: string) {
   const normalized = normalizeBroadcastText(value);
   if (!normalized || normalized.toLowerCase() === "all") return normalized;
-  return isNorthKoreaName(normalized) ? NORTH_KOREA_API_NAME : normalized;
+  return isNorthKoreaName(normalized) ? NORTH_KOREA_COUNTRY_CODE : normalized;
+}
+
+export function countryFilterUsesCountryCode(value: string) {
+  const normalized = normalizeBroadcastText(value);
+  return Boolean(normalized) && isNorthKoreaName(normalized);
 }
 
 export function stationMatchesCountryFilter(
