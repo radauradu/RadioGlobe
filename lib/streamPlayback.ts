@@ -1,5 +1,34 @@
 export const STALL_RECONNECT_MS = 2_500;
 export const MAX_STALL_RECONNECTS = 12;
+export const DIRECT_READY_TIMEOUT_MS = 20_000;
+export const DIRECT_READY_SLOW_TIMEOUT_MS = 35_000;
+export const MAX_DIRECT_ATTEMPTS_BEFORE_RELAY = 2;
+/** Re-open the Vercel relay before the 300s function limit. */
+export const RELAY_ROTATE_MS = 4 * 60 * 1000;
+/** Vercel function max duration for the stream relay. */
+export const RELAY_VERCEL_MAX_MS = 5 * 60 * 1000;
+/** Start buffering the next relay this long before the rotation deadline. */
+export const RELAY_OVERLAP_LEAD_MS = 90_000;
+/** Only hard-swap this long before the upstream relay is killed. */
+export const RELAY_HARD_SWAP_GUARD_MS = 15_000;
+/** Wait for overlap currentTime to advance before cutting over. */
+export const RELAY_OVERLAP_SETTLE_MS = 700;
+
+export type PlaybackMode = "direct" | "relay";
+
+export function nextPlaybackMode({
+  usingRelay,
+  directAttempts,
+  maxDirectAttempts = MAX_DIRECT_ATTEMPTS_BEFORE_RELAY,
+}: {
+  usingRelay: boolean;
+  directAttempts: number;
+  maxDirectAttempts?: number;
+}): PlaybackMode {
+  if (usingRelay) return "relay";
+  if (directAttempts < maxDirectAttempts) return "direct";
+  return "relay";
+}
 
 export function canReconnectLiveStream({
   wantsPlayback,
@@ -26,8 +55,27 @@ export function directPlaybackUrl(
     if (url.protocol === "http:" && pageProtocol === "https:") {
       url.protocol = "https:";
     }
+    if (
+      url.hostname.includes("streamtheworld.com") &&
+      url.pathname.endsWith("_SC")
+    ) {
+      url.pathname = `${url.pathname.slice(0, -3)}.aac`;
+    }
     return url.toString();
   } catch {
     return streamUrl;
+  }
+}
+
+export function relayPlaybackUrl(stationId: string, session = Date.now()) {
+  return `/api/stream/${encodeURIComponent(stationId)}?session=${session}`;
+}
+
+export function isRelayPlaybackUrl(url: string) {
+  try {
+    const parsed = new URL(url, "https://example.com");
+    return parsed.pathname.startsWith("/api/stream/");
+  } catch {
+    return url.includes("/api/stream/");
   }
 }

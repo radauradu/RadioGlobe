@@ -1,5 +1,6 @@
 import type { RadioStation, StationPoint } from "./radioApi";
 import { normalizeBroadcastText } from "./text";
+import { stationMatchesCountryFilter } from "./countryNames";
 
 export interface CuratedStationInput {
   id: string;
@@ -208,7 +209,7 @@ const CURATED_STATION_INPUTS: CuratedStationInput[] = [
   {
     id: "1a107900-a000-4000-8000-010790000001",
     name: "Hot 107.9",
-    streamUrl: "https://27063.live.streamtheworld.com/WHTAFMAAC_SC",
+    streamUrl: "https://playerservices.streamtheworld.com/api/livestream-redirect/WHTAFMAAC.aac",
     homepage: "https://hot1079.iheart.com/",
     favicon:
       "https://i.iheart.com/v3/re/new_assets/60ad8bf5594a0d2d96cbf377",
@@ -525,12 +526,10 @@ function stationMatchesQuery(station: RadioStation, query: string) {
 }
 
 function stationMatchesCountry(station: RadioStation, country: string) {
-  const normalizedCountry = normalizeSearchValue(country);
-  if (!normalizedCountry || normalizedCountry === "all") return true;
-
-  return (
-    normalizeSearchValue(station.country).includes(normalizedCountry) ||
-    normalizeSearchValue(station.countryCode) === normalizedCountry
+  return stationMatchesCountryFilter(
+    station.country,
+    station.countryCode,
+    country,
   );
 }
 
