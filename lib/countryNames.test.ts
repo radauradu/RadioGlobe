@@ -21,10 +21,8 @@ describe("displayCountryName", () => {
 });
 
 describe("countryFilterQueryValue", () => {
-  it("maps the picker label back to the Radio Browser country name", () => {
-    expect(countryFilterQueryValue("North Korea")).toBe(
-      "Korea, Democratic People's Republic of",
-    );
+  it("maps the picker label to the Radio Browser country code", () => {
+    expect(countryFilterQueryValue("North Korea")).toBe("KP");
   });
 });
 
@@ -32,7 +30,7 @@ describe("stationMatchesCountryFilter", () => {
   it("matches North Korea by country code and long names", () => {
     expect(
       stationMatchesCountryFilter(
-        "Korea, Democratic People's Republic of",
+        "The Democratic Peoples Republic Of Korea",
         "KP",
         "North Korea",
       ),
