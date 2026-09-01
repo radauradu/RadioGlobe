@@ -208,7 +208,7 @@ const CURATED_STATION_INPUTS: CuratedStationInput[] = [
   {
     id: "1a107900-a000-4000-8000-010790000001",
     name: "Hot 107.9",
-    streamUrl: "https://27063.live.streamtheworld.com/WHTAFMAAC_SC",
+    streamUrl: "https://playerservices.streamtheworld.com/api/livestream-redirect/WHTAFMAAC.aac",
     homepage: "https://hot1079.iheart.com/",
     favicon:
       "https://i.iheart.com/v3/re/new_assets/60ad8bf5594a0d2d96cbf377",

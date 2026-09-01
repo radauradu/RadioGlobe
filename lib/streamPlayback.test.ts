@@ -3,6 +3,8 @@ import {
   MAX_STALL_RECONNECTS,
   canReconnectLiveStream,
   directPlaybackUrl,
+  isRelayPlaybackUrl,
+  relayPlaybackUrl,
 } from "./streamPlayback";
 
 describe("canReconnectLiveStream", () => {
@@ -64,5 +66,22 @@ describe("directPlaybackUrl", () => {
     expect(directPlaybackUrl("http://radio.example/stream", "http:")).toBe(
       "http://radio.example/stream",
     );
+  });
+
+  it("normalizes streamtheworld _SC paths to .aac for direct playback", () => {
+    expect(
+      directPlaybackUrl(
+        "https://27063.live.streamtheworld.com/WHTAFMAAC_SC",
+        "https:",
+      ),
+    ).toBe("https://27063.live.streamtheworld.com/WHTAFMAAC.aac");
+  });
+
+  it("builds relay playback urls", () => {
+    expect(relayPlaybackUrl("station-1", 123)).toBe(
+      "/api/stream/station-1?session=123",
+    );
+    expect(isRelayPlaybackUrl("/api/stream/station-1?session=123")).toBe(true);
+    expect(isRelayPlaybackUrl("https://radio.example/live")).toBe(false);
   });
 });
