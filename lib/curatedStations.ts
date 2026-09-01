@@ -1,5 +1,6 @@
 import type { RadioStation, StationPoint } from "./radioApi";
 import { normalizeBroadcastText } from "./text";
+import { stationMatchesCountryFilter } from "./countryNames";
 
 export interface CuratedStationInput {
   id: string;
@@ -525,12 +526,10 @@ function stationMatchesQuery(station: RadioStation, query: string) {
 }
 
 function stationMatchesCountry(station: RadioStation, country: string) {
-  const normalizedCountry = normalizeSearchValue(country);
-  if (!normalizedCountry || normalizedCountry === "all") return true;
-
-  return (
-    normalizeSearchValue(station.country).includes(normalizedCountry) ||
-    normalizeSearchValue(station.countryCode) === normalizedCountry
+  return stationMatchesCountryFilter(
+    station.country,
+    station.countryCode,
+    country,
   );
 }
 

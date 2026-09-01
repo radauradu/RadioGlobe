@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_DIRECT_ATTEMPTS_BEFORE_RELAY,
   MAX_STALL_RECONNECTS,
+  RELAY_HARD_SWAP_GUARD_MS,
   RELAY_OVERLAP_LEAD_MS,
   RELAY_ROTATE_MS,
+  RELAY_VERCEL_MAX_MS,
   canReconnectLiveStream,
   directPlaybackUrl,
   isRelayPlaybackUrl,
@@ -91,6 +93,13 @@ describe("directPlaybackUrl", () => {
 
   it("starts relay overlap before the rotation deadline", () => {
     expect(RELAY_OVERLAP_LEAD_MS).toBeLessThan(RELAY_ROTATE_MS);
+  });
+
+  it("hard-swaps only after overlap has had time to settle", () => {
+    expect(RELAY_HARD_SWAP_GUARD_MS).toBeLessThan(RELAY_OVERLAP_LEAD_MS);
+    expect(RELAY_ROTATE_MS + RELAY_HARD_SWAP_GUARD_MS).toBeLessThan(
+      RELAY_VERCEL_MAX_MS,
+    );
   });
 });
 

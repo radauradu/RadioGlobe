@@ -5,6 +5,10 @@ import {
   mergeCuratedSearchResults,
 } from "./curatedStations";
 import {
+  countryFilterQueryValue,
+  displayCountryName,
+} from "./countryNames";
+import {
   genreSearchTags,
   normalizeGenreFacets,
 } from "./genreCatalog";
@@ -433,7 +437,8 @@ async function searchStationsByTag({
     reverse: "true",
   });
   if (searchQuery.trim()) query.set("name", searchQuery.trim());
-  if (country.trim()) query.set("country", country.trim());
+  const countryFilter = countryFilterQueryValue(country);
+  if (countryFilter.trim()) query.set("country", countryFilter.trim());
   if (genre.trim()) query.set("tag", genre.trim());
   if (language.trim()) query.set("language", language.trim());
 
@@ -475,7 +480,7 @@ export async function fetchStationFacets() {
         (facet): facet is Required<RadioBrowserFacet> =>
           Boolean(facet.name?.trim()) && (facet.stationcount ?? 0) > 0,
       )
-      .map(({ name }) => normalizeBroadcastText(name));
+      .map(({ name }) => displayCountryName(normalizeBroadcastText(name)));
 
   const normalizeLanguages = (facets: RadioBrowserFacet[]) =>
     facets

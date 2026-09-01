@@ -5,9 +5,14 @@ export const DIRECT_READY_SLOW_TIMEOUT_MS = 35_000;
 export const MAX_DIRECT_ATTEMPTS_BEFORE_RELAY = 2;
 /** Re-open the Vercel relay before the 300s function limit. */
 export const RELAY_ROTATE_MS = 4 * 60 * 1000;
+/** Vercel function max duration for the stream relay. */
+export const RELAY_VERCEL_MAX_MS = 5 * 60 * 1000;
 /** Start buffering the next relay this long before the rotation deadline. */
-export const RELAY_OVERLAP_LEAD_MS = 45_000;
-export const RELAY_OVERLAP_CROSSFADE_MS = 120;
+export const RELAY_OVERLAP_LEAD_MS = 90_000;
+/** Only hard-swap this long before the upstream relay is killed. */
+export const RELAY_HARD_SWAP_GUARD_MS = 15_000;
+/** Wait for overlap currentTime to advance before cutting over. */
+export const RELAY_OVERLAP_SETTLE_MS = 700;
 
 export type PlaybackMode = "direct" | "relay";
 
