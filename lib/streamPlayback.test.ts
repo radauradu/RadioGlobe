@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_STALL_RECONNECTS,
+  RELAY_OVERLAP_LEAD_MS,
+  RELAY_ROTATE_MS,
   canReconnectLiveStream,
   directPlaybackUrl,
   isRelayPlaybackUrl,
@@ -83,5 +85,9 @@ describe("directPlaybackUrl", () => {
     );
     expect(isRelayPlaybackUrl("/api/stream/station-1?session=123")).toBe(true);
     expect(isRelayPlaybackUrl("https://radio.example/live")).toBe(false);
+  });
+
+  it("starts relay overlap before the rotation deadline", () => {
+    expect(RELAY_OVERLAP_LEAD_MS).toBeLessThan(RELAY_ROTATE_MS);
   });
 });

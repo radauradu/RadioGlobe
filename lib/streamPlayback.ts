@@ -5,6 +5,9 @@ export const DIRECT_READY_SLOW_TIMEOUT_MS = 35_000;
 export const MAX_DIRECT_ATTEMPTS_BEFORE_RELAY = 2;
 /** Re-open the Vercel relay before the 300s function limit. */
 export const RELAY_ROTATE_MS = 4 * 60 * 1000;
+/** Start buffering the next relay this long before the rotation deadline. */
+export const RELAY_OVERLAP_LEAD_MS = 45_000;
+export const RELAY_OVERLAP_CROSSFADE_MS = 120;
 
 export function canReconnectLiveStream({
   wantsPlayback,

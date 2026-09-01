@@ -21,6 +21,8 @@ import {
   DIRECT_READY_TIMEOUT_MS,
   MAX_DIRECT_ATTEMPTS_BEFORE_RELAY,
   MAX_STALL_RECONNECTS,
+  RELAY_OVERLAP_CROSSFADE_MS,
+  RELAY_OVERLAP_LEAD_MS,
   RELAY_ROTATE_MS,
   STALL_RECONNECT_MS,
   canReconnectLiveStream,
@@ -66,6 +68,43 @@ function createPlayerAudioElement() {
     "position:fixed;width:0;height:0;opacity:0;pointer-events:none";
   document.body.appendChild(audio);
   return audio;
+}
+
+function createOverlapAudioElement() {
+  const audio = document.createElement("audio");
+  audio.id = "radioglobe-player-overlap";
+  audio.preload = "auto";
+  audio.volume = 0.72;
+  audio.setAttribute("playsinline", "");
+  audio.setAttribute("webkit-playsinline", "true");
+  audio.style.cssText =
+    "position:fixed;width:0;height:0;opacity:0;pointer-events:none";
+  document.body.appendChild(audio);
+  return audio;
+}
+
+function promoteOverlapToPrimary(
+  audioRef: MutableRefObject<HTMLAudioElement | null>,
+  overlap: HTMLAudioElement,
+) {
+  const registry = audioElementRegistry();
+  const previous = audioRef.current;
+  if (previous && previous !== overlap) {
+    registry.delete(previous);
+    hardStopAudioElement(previous);
+    previous.remove();
+  }
+  overlap.id = "radioglobe-player";
+  registry.add(overlap);
+  audioRef.current = overlap;
+}
+
+function isOverlapPlaybackReady(audio: HTMLAudioElement) {
+  return (
+    !audio.paused &&
+    audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA &&
+    !hasStreamLoadError(audio)
+  );
 }
 
 function replaceSharedAudioElement(
@@ -189,6 +228,13 @@ export function useAudioPlayer(
   const stallReconnectCountRef = useRef(0);
   const directAttemptsRef = useRef(0);
   const relayRotateTimerRef = useRef<number | null>(null);
+  const relayPrepTimerRef = useRef<number | null>(null);
+  const relayOverlapAudioRef = useRef<HTMLAudioElement | null>(null);
+  const relayOverlapGenRef = useRef(0);
+  const relayOverlapCommittingRef = useRef(false);
+  const scheduleRelayRotationRef = useRef<() => void>(() => undefined);
+  const beginRelayOverlapRef = useRef<() => Promise<void>>(async () => undefined);
+  const forceRelayOverlapCommitRef = useRef<() => Promise<void>>(async () => undefined);
   const reconnectingRef = useRef(false);
   const reconnectFromStallRef = useRef<() => Promise<void>>(
     async () => undefined,
@@ -224,6 +270,28 @@ export function useAudioPlayer(
     window.clearTimeout(relayRotateTimerRef.current);
     relayRotateTimerRef.current = null;
   }, []);
+
+  const clearRelayPrepTimer = useCallback(() => {
+    if (relayPrepTimerRef.current == null) return;
+    window.clearTimeout(relayPrepTimerRef.current);
+    relayPrepTimerRef.current = null;
+  }, []);
+
+  const clearRelayOverlap = useCallback(() => {
+    relayOverlapGenRef.current += 1;
+    const overlap = relayOverlapAudioRef.current;
+    if (!overlap) return;
+    const registry = audioElementRegistry();
+    registry.delete(overlap);
+    hardStopAudioElement(overlap);
+    overlap.remove();
+    relayOverlapAudioRef.current = null;
+  }, []);
+
+  const clearRelayRotationTimers = useCallback(() => {
+    clearRelayRotateTimer();
+    clearRelayPrepTimer();
+  }, [clearRelayPrepTimer, clearRelayRotateTimer]);
 
   const destroyHls = useCallback(() => {
     const hls = hlsRef.current;
@@ -318,7 +386,8 @@ export function useAudioPlayer(
     suppressPlatformPauseRef.current = true;
     attachGenerationRef.current += 1;
     clearStallTimer();
-    clearRelayRotateTimer();
+    clearRelayRotationTimers();
+    clearRelayOverlap();
     silencePlaybackOutput();
     destroyHls();
     const audio = bindSharedAudioElement(audioRef);
@@ -341,7 +410,7 @@ export function useAudioPlayer(
     window.setTimeout(() => {
       suppressPlatformPauseRef.current = false;
     }, 0);
-  }, [clearRelayRotateTimer, clearStallTimer, destroyHls, silencePlaybackOutput]);
+  }, [clearRelayOverlap, clearRelayRotationTimers, clearStallTimer, destroyHls, silencePlaybackOutput]);
 
   const cancelPlaybackIntent = useCallback(() => {
     playbackGenerationRef.current += 1;
@@ -364,7 +433,8 @@ export function useAudioPlayer(
     clearAutoUnmute();
     destroyHls();
     clearStallTimer();
-    clearRelayRotateTimer();
+    clearRelayRotationTimers();
+    clearRelayOverlap();
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
@@ -374,7 +444,7 @@ export function useAudioPlayer(
     window.setTimeout(() => {
       suppressPlatformPauseRef.current = false;
     }, 0);
-  }, [clearAutoUnmute, clearRelayRotateTimer, clearStallTimer, destroyHls]);
+  }, [clearAutoUnmute, clearRelayOverlap, clearRelayRotationTimers, clearStallTimer, destroyHls]);
 
   // Autoplay can start the media element while leaving Web Audio suspended.
   // Resume the analyser on the next genuine user gesture so the spectrum
@@ -405,30 +475,173 @@ export function useAudioPlayer(
     [],
   );
 
-  const scheduleRelayRotation = useCallback(() => {
-    clearRelayRotateTimer();
-    if (!usingRelayRef.current || !wantPlayingRef.current) return;
+  const hardSwapRelay = useCallback(() => {
+    const current = stationRef.current;
+    const audio = audioRef.current;
+    if (!current || !audio || !wantPlayingRef.current || !usingRelayRef.current) {
+      return;
+    }
 
-    relayRotateTimerRef.current = window.setTimeout(() => {
-      relayRotateTimerRef.current = null;
-      const current = stationRef.current;
-      const audio = audioRef.current;
-      if (!current || !audio || !wantPlayingRef.current || !usingRelayRef.current) {
-        return;
+    clearRelayOverlap();
+    suppressPlatformPauseRef.current = true;
+    reconnectingRef.current = true;
+    audio.src = relayPlaybackUrl(current.id);
+    audio.load();
+    void audio.play().catch(() => undefined);
+    window.setTimeout(() => {
+      suppressPlatformPauseRef.current = false;
+      reconnectingRef.current = false;
+    }, 0);
+  }, [clearRelayOverlap]);
+
+  const commitRelayOverlap = useCallback(async () => {
+    if (relayOverlapCommittingRef.current) return;
+
+    const overlap = relayOverlapAudioRef.current;
+    const primary = audioRef.current;
+    const current = stationRef.current;
+    if (
+      !overlap ||
+      !primary ||
+      !current ||
+      !wantPlayingRef.current ||
+      !usingRelayRef.current
+    ) {
+      return;
+    }
+
+    if (!isOverlapPlaybackReady(overlap)) return;
+
+    relayOverlapCommittingRef.current = true;
+    clearRelayRotationTimers();
+    suppressPlatformPauseRef.current = true;
+    reconnectingRef.current = true;
+
+    try {
+      const targetVolume = volumeRef.current;
+      const shouldCrossfade =
+        !mutedRef.current && targetVolume > 0 && !primary.paused;
+
+      overlap.muted = mutedRef.current;
+      if (shouldCrossfade) {
+        overlap.volume = 0;
+        await Promise.all([
+          fadeAudioVolume(
+            primary,
+            primary.volume,
+            0,
+            RELAY_OVERLAP_CROSSFADE_MS,
+            () => wantPlayingRef.current,
+          ),
+          fadeAudioVolume(
+            overlap,
+            0,
+            targetVolume,
+            RELAY_OVERLAP_CROSSFADE_MS,
+            () => wantPlayingRef.current,
+          ),
+        ]);
+      } else {
+        overlap.volume = targetVolume;
       }
 
-      suppressPlatformPauseRef.current = true;
-      reconnectingRef.current = true;
-      audio.src = relayPlaybackUrl(current.id);
-      audio.load();
-      void audio.play().catch(() => undefined);
+      promoteOverlapToPrimary(audioRef, overlap);
+      relayOverlapAudioRef.current = null;
+      setAudioEpoch((epoch) => epoch + 1);
+      syncNowPlayingMetadata(current, streamTitleRef.current, audioRef.current);
+    } finally {
+      relayOverlapCommittingRef.current = false;
       window.setTimeout(() => {
         suppressPlatformPauseRef.current = false;
         reconnectingRef.current = false;
       }, 0);
-      scheduleRelayRotation();
+      scheduleRelayRotationRef.current();
+    }
+  }, [clearRelayRotationTimers]);
+
+  const beginRelayOverlap = useCallback(async () => {
+    if (
+      relayOverlapAudioRef.current ||
+      relayOverlapCommittingRef.current ||
+      !usingRelayRef.current ||
+      !wantPlayingRef.current
+    ) {
+      return;
+    }
+
+    const current = stationRef.current;
+    if (!current) return;
+
+    const overlapGen = relayOverlapGenRef.current + 1;
+    relayOverlapGenRef.current = overlapGen;
+    const overlap = createOverlapAudioElement();
+    relayOverlapAudioRef.current = overlap;
+
+    overlap.title = current.name;
+    overlap.setAttribute("title", current.name);
+    overlap.src = relayPlaybackUrl(current.id);
+    overlap.muted = true;
+    overlap.volume = volumeRef.current;
+    overlap.load();
+
+    try {
+      await overlap.play();
+    } catch {
+      if (relayOverlapGenRef.current !== overlapGen) return;
+      clearRelayOverlap();
+      return;
+    }
+
+    const ready = await waitForPlaybackReady(overlap, DIRECT_READY_TIMEOUT_MS);
+    if (
+      relayOverlapGenRef.current !== overlapGen ||
+      !wantPlayingRef.current ||
+      !usingRelayRef.current ||
+      relayOverlapAudioRef.current !== overlap
+    ) {
+      return;
+    }
+
+    if (ready && isOverlapPlaybackReady(overlap)) {
+      await commitRelayOverlap();
+    }
+  }, [clearRelayOverlap, commitRelayOverlap]);
+
+  const forceRelayOverlapCommit = useCallback(async () => {
+    clearRelayRotationTimers();
+
+    const overlap = relayOverlapAudioRef.current;
+    if (overlap && isOverlapPlaybackReady(overlap)) {
+      await commitRelayOverlap();
+      return;
+    }
+
+    clearRelayOverlap();
+    hardSwapRelay();
+    scheduleRelayRotationRef.current();
+  }, [clearRelayOverlap, clearRelayRotationTimers, commitRelayOverlap, hardSwapRelay]);
+
+  const scheduleRelayRotation = useCallback(() => {
+    clearRelayRotationTimers();
+    if (!usingRelayRef.current || !wantPlayingRef.current) return;
+
+    const prepDelay = Math.max(0, RELAY_ROTATE_MS - RELAY_OVERLAP_LEAD_MS);
+    relayPrepTimerRef.current = window.setTimeout(() => {
+      relayPrepTimerRef.current = null;
+      void beginRelayOverlapRef.current();
+    }, prepDelay);
+
+    relayRotateTimerRef.current = window.setTimeout(() => {
+      relayRotateTimerRef.current = null;
+      void forceRelayOverlapCommitRef.current();
     }, RELAY_ROTATE_MS);
-  }, [clearRelayRotateTimer]);
+  }, [clearRelayRotationTimers]);
+
+  useEffect(() => {
+    scheduleRelayRotationRef.current = scheduleRelayRotation;
+    beginRelayOverlapRef.current = beginRelayOverlap;
+    forceRelayOverlapCommitRef.current = forceRelayOverlapCommit;
+  }, [beginRelayOverlap, forceRelayOverlapCommit, scheduleRelayRotation]);
 
   const attachSource: (nextStation: RadioStation, relay: boolean) => void =
     useCallback(
@@ -763,7 +976,8 @@ export function useAudioPlayer(
       if (usingRelayRef.current) {
         scheduleRelayRotation();
       } else {
-        clearRelayRotateTimer();
+        clearRelayRotationTimers();
+        clearRelayOverlap();
         directAttemptsRef.current = 0;
       }
       syncMediaSessionPlaybackState("playing");
@@ -860,7 +1074,8 @@ export function useAudioPlayer(
     };
   }, [
     attachSource,
-    clearRelayRotateTimer,
+    clearRelayOverlap,
+    clearRelayRotationTimers,
     clearStallTimer,
     haltAudioOutput,
     pausePlayback,
@@ -1084,10 +1299,14 @@ export function useAudioPlayer(
     const normalized = Math.max(0, Math.min(1, value));
     setVolumeState(normalized);
     if (audioRef.current) audioRef.current.volume = normalized;
+    if (relayOverlapAudioRef.current) {
+      relayOverlapAudioRef.current.volume = normalized;
+    }
     if (normalized > 0) {
       setMutedState(false);
       mutedRef.current = false;
       if (audioRef.current) audioRef.current.muted = false;
+      if (relayOverlapAudioRef.current) relayOverlapAudioRef.current.muted = false;
     }
   }, []);
 
@@ -1096,6 +1315,7 @@ export function useAudioPlayer(
       const next = !current;
       mutedRef.current = next;
       if (audioRef.current) audioRef.current.muted = next;
+      if (relayOverlapAudioRef.current) relayOverlapAudioRef.current.muted = next;
       return next;
     });
   }, []);
