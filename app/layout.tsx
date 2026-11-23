@@ -4,6 +4,7 @@ import {
   GoogleTagManagerBody,
   GoogleTagManagerHead,
 } from "@/components/GoogleTagManager";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import {
   APP_DESCRIPTION,
@@ -126,6 +127,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         {children}
+        <Analytics />
       </body>
     </html>
   );
