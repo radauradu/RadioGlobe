@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import {
+  GoogleTagManagerBody,
+  GoogleTagManagerHead,
+} from "@/components/GoogleTagManager";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import {
@@ -114,8 +118,10 @@ export default function RootLayout({
         <Script id="cesium-base-url" strategy="beforeInteractive">
           {"window.CESIUM_BASE_URL='/cesium/';"}
         </Script>
+        <GoogleTagManagerHead />
       </head>
       <body>
+        <GoogleTagManagerBody />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
