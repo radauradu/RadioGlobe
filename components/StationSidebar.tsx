@@ -8,7 +8,6 @@ import {
   Share,
   X,
 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import ApplePanel from "@/components/ApplePanel";
 import FilterPicker from "@/components/FilterPicker";
@@ -47,6 +46,7 @@ interface StationSidebarProps {
   recentCount: number;
   isSelectedFavorite?: boolean;
   onToggleFavorite?: (stationId: string) => void;
+  onOpenAbout?: () => void;
 }
 
 export default function StationSidebar({
@@ -68,6 +68,7 @@ export default function StationSidebar({
   recentCount,
   isSelectedFavorite = false,
   onToggleFavorite,
+  onOpenAbout,
 }: StationSidebarProps) {
   const [listOpen, setListOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -323,9 +324,16 @@ export default function StationSidebar({
       {browseControls}
       {stationList}
       <footer className="sidebar-about-footer">
-        <Link href="/about" className="sidebar-about-link" onClick={closeIfCompact}>
+        <button
+          type="button"
+          className="sidebar-about-link"
+          onClick={() => {
+            closeIfCompact();
+            onOpenAbout?.();
+          }}
+        >
           About {APP_NAME}
-        </Link>
+        </button>
       </footer>
     </>
   );

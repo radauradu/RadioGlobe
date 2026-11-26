@@ -1,9 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { LocateFixed } from "lucide-react";
+import { LocateFixed, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AudioPlayerHUD from "@/components/AudioPlayerHUD";
+import ApplePanel from "@/components/ApplePanel";
 import CrosshairOverlay from "@/components/CrosshairOverlay";
 import LoadingChip from "@/components/LoadingChip";
 import PwaRegister from "@/components/PwaRegister";
@@ -11,6 +13,7 @@ import WelcomeGuide from "@/components/WelcomeGuide";
 import StationSidebar, {
   type StationListMode,
 } from "@/components/StationSidebar";
+import { APP_DESCRIPTION, APP_NAME } from "@/lib/brand";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
 import { useMediaSession } from "@/hooks/useMediaSession";
 import { useFavorites } from "@/hooks/useFavorites";
@@ -57,10 +60,17 @@ const GlobeViewport = dynamic(() => import("@/components/GlobeViewport"), {
   ),
 });
 
-export default function HomePage() {
+export default function HomePage({
+  aboutInitiallyOpen = false,
+}: {
+  aboutInitiallyOpen?: boolean;
+} = {}) {
   const directory = useRadioStreams();
   const favorites = useFavorites();
   const recent = useRecentStations();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [aboutOpen, setAboutOpen] = useState(aboutInitiallyOpen);
   const [selectedStation, setSelectedStation] =
     useState<RadioStation | null>(null);
   const [favoriteStations, setFavoriteStations] = useState<RadioStation[]>([]);
@@ -492,6 +502,14 @@ export default function HomePage() {
     return () => window.clearTimeout(timer);
   }, [player.isPlaying, player.wantsPlayback, selectedStation, player.tune]);
 
+  const closeAbout = () => {
+    if (pathname === "/about") {
+      router.push("/");
+      return;
+    }
+    setAboutOpen(false);
+  };
+
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-black">
       <PwaRegister />
@@ -551,6 +569,7 @@ export default function HomePage() {
               onToggleFavorite={(stationId) => {
                 favorites.toggle(stationId);
               }}
+              onOpenAbout={() => setAboutOpen(true)}
             />
           </div>
 
@@ -588,6 +607,36 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+      {aboutOpen ? (
+        <div className="about-page">
+          <ApplePanel className="about-window" aria-label={`About ${APP_NAME}`}>
+            <header className="sidebar-header">
+              <p className="apple-title" id="about-title">
+                About {APP_NAME}
+              </p>
+              <button
+                type="button"
+                className="apple-icon-btn"
+                aria-label="Close"
+                onClick={closeAbout}
+              >
+                <X className="sidebar-close-icon" strokeWidth={1.75} />
+              </button>
+            </header>
+            <div className="about-window-body">
+              <p>{APP_DESCRIPTION}</p>
+              <p>
+                Spin the 3D Earth to discover live radio from around the world and discover songs and artists. Search
+                by station name or filter by country, or genre. Save favorites, tune in instantly,
+                and share stations with friends.
+              </p>
+              <button type="button" className="about-page-cta" onClick={closeAbout}>
+                Open the globe
+              </button>
+            </div>
+          </ApplePanel>
+        </div>
+      ) : null}
     </main>
   );
 }
